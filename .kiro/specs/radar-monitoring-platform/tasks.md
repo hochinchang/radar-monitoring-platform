@@ -67,7 +67,7 @@
     - _需求：2.4、4.2_
 
 - [ ] 5. 警示服務
-  - [~] 5.1 實作 `backend/services/alert_service.py`
+  - [ ] 5.1 實作 `backend/services/alert_service.py`
     - 實作 `get_all_instrument_statuses() -> list[InstrumentStatus]`，查詢 `radarFileCheck` 最新快照，計算 `diff_time_minutes = (NOW() - FROM_UNIXTIME(FileTime)) / 60`
     - 實作 `get_instrument_threshold(file_type) -> float`，未設定時回傳 config 預設值（30 分鐘）
     - 實作 `set_instrument_threshold(file_type, threshold_minutes) -> None`，儲存於記憶體 dict
