@@ -1,0 +1,35 @@
+databases:
+  file_status:
+    host: "localhost"
+    port: 3306
+    name: "FileStatus"
+    user: "monitor_user"
+    password: "secret"
+    pool_size: 5
+  system_status:
+    host: "localhost"
+    port: 3306
+    name: "SystemStatus"
+    user: "monitor_user"
+    password: "secret"
+    pool_size: 3
+  disk_status:
+    host: "localhost"
+    port: 3306
+    name: "DiskStatus"
+    user: "monitor_user"
+    password: "secret"
+    pool_size: 3
+
+system:
+  radar_interval_minutes: 10
+  query_timeout_seconds: 5
+  reconnect_interval_seconds: 10
+  max_reconnect_attempts: 3
+  default_max_diff_time_threshold: 30.0
+
+instruments:
+  RADAR_A:
+    max_diff_time_threshold: 30.0
+  RADAR_B:
+    max_diff_time_threshold: 30.0
