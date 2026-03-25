@@ -75,3 +75,13 @@ async function updateThreshold(fileType, threshold) {
     body: JSON.stringify({ max_diff_time_threshold: threshold }),
   });
 }
+
+/** 取得系統狀態（負載、記憶體） */
+async function fetchSystemStatus() {
+  return apiFetch('/system/current');
+}
+
+/** 取得磁碟狀態 */
+async function fetchDiskStatus() {
+  return apiFetch('/disk/current');
+}

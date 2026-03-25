@@ -233,3 +233,50 @@ button:hover { background: #1d4ed8; }
 
 /* ── Misc ── */
 .loading { color: #64748b; font-size: 0.88rem; }
+
+/* ── Home nav cards ── */
+.home-main {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 60px);
+}
+
+.nav-cards {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 24px;
+}
+
+.nav-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #1a1d27;
+  border: 1px solid #2d3148;
+  border-radius: 14px;
+  padding: 36px 40px;
+  width: 240px;
+  text-decoration: none;
+  color: #e2e8f0;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.nav-card:hover {
+  border-color: #7dd3fc;
+  transform: translateY(-3px);
+}
+.nav-card-icon { font-size: 2.8rem; margin-bottom: 14px; }
+.nav-card-title { font-size: 1.1rem; font-weight: 600; color: #7dd3fc; margin-bottom: 8px; }
+.nav-card-desc  { font-size: 0.8rem; color: #64748b; text-align: center; line-height: 1.5; }
+
+/* ── Header with back link ── */
+.header-left { display: flex; align-items: center; gap: 12px; }
+.back-link {
+  color: #7dd3fc;
+  text-decoration: none;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.back-link:hover { text-decoration: underline; }

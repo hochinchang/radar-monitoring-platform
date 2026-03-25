@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.routers.completeness import router as completeness_router
 from backend.routers.instruments import router as instruments_router
+from backend.routers.system import router as system_router
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -49,6 +50,7 @@ app = FastAPI(
 
 app.include_router(completeness_router)
 app.include_router(instruments_router)
+app.include_router(system_router)
 
 # Serve frontend static files
 _FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
