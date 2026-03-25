@@ -1,0 +1,142 @@
+================================================================
+檔案：tests/integration/test_db_access.py
+功能：資料庫整合測試。驗證三個 MySQL 資料庫（FileStatus、SystemStatus、DiskStatus）
+      的實際連線能力、資料表結構，以及資料完整性（如 DiffTime 不應為負數）。
+      若資料庫無法連線，使用 pytest.skip 優雅跳過，不計為測試失敗。
+
+執行前提：config/config.yaml 中的 DB 連線參數需指向可存取的 MySQL 實例。
+================================================================
+
+--- 模組說明字串 (第 1-12 行) ---
+第 1-12 行：docstring，說明測試目的、執行前提，以及跳過機制（pytest.skip）。
+
+--- 匯入區塊 (第 14-21 行) ---
+第 14 行：`from __future__ import annotations`
+         啟用延遲型別評估。
+
+第 16 行：`import pytest`
+          pytest 框架，用於 parametrize、skip、fixture 等功能。
+
+第 17 行：`from sqlalchemy import text`
+          SQL 字串包裝器。
+
+第 18 行：`from sqlalchemy.exc import OperationalError, SQLAlchemyError`
+          捕捉 DB 連線失敗的例外。
+
+第 20 行：`import backend.database as db_module`
+          以 db_module 別名匯入 database 模組，
+          方便直接存取 _engines、_session_factories 等私有模組狀態進行清理。
+
+第 21 行：`from backend.config import get_config`
+          用於取得設定值做驗證比對。
+
+--- _try_connect 輔助函式 (第 28-36 行) ---
+第 28 行：`def _try_connect(db_name: str) -> bool:`
+          私有輔助函式，嘗試連線至指定資料庫，回傳 True/False。
+
+第 30-33 行：取得 Engine，嘗試執行 "SELECT 1"。
+             若成功表示 DB 可連線，回傳 True。
+
+第 34-35 行：捕捉 OperationalError/SQLAlchemyError，
+             若失敗（無法連線）回傳 False，不拋出例外。
+
+--- _skip_if_unreachable 輔助函式 (第 39-41 行) ---
+第 39 行：`def _skip_if_unreachable(db_name: str):`
+          若指定 DB 無法連線，呼叫 pytest.skip() 跳過目前測試。
+
+第 40-41 行：`if not _try_connect(db_name): pytest.skip(...)`
+             pytest.skip() 會立即中止目前測試，標記為「SKIPPED」而非「FAILED」，
+             這是整合測試的常見做法：環境不滿足時優雅略過，不污染測試結果。
+
+================================================================
+TestConnectionHealth 測試類別 (第 48-63 行)
+驗證 check_connection() 對三個資料庫均能正常回傳結果
+================================================================
+
+--- test_check_connection_returns_bool (第 51-56 行) ---
+第 51 行：`@pytest.mark.parametrize("db_name", ["file_status", "system_status", "disk_status"])`
+          參數化裝飾器：讓同一個測試函式自動執行三次，每次使用不同的 db_name。
+          這是 pytest 避免重複測試代碼的標準做法。
+
+第 52-56 行：每次測試前清空 _engines 和 _session_factories（確保每次都重新初始化）。
+             呼叫 check_connection()，只驗證回傳型別為 bool（不管連線是否成功）。
+             這確保函式不會拋出例外或回傳 None。
+
+--- test_check_connection_succeeds (第 58-63 行) ---
+第 58-63 行：在確認 DB 可連線後（_skip_if_unreachable），
+             驗證 check_connection() 回傳 True。
+
+================================================================
+TestFileStatusDB 測試類別 (第 70-127 行)
+驗證 FileStatus 資料庫的三個資料表
+================================================================
+
+--- require_connection fixture (第 73-77 行) ---
+第 73 行：`@pytest.fixture(autouse=True)`
+          pytest fixture 裝飾器，autouse=True 表示類別中每個測試執行前自動套用。
+          不需在每個測試函式中明確呼叫。
+
+第 74-77 行：清空引擎快取，若 DB 無法連線則 skip 整個類別的所有測試。
+
+--- test_radar_status_table_accessible (第 79-91 行) ---
+第 80-91 行：驗證 radarStatus 資料表存在且欄位結構正確：
+             查詢 6 個欄位（ID, IP, FileName, FileType, FileTime, DiffTime）。
+             不拋出例外即表示資料表和欄位存在。
+             若有資料，第 90-91 行驗證 FileTime 和 DiffTime 的型別（可為 None 或值）。
+
+--- test_radar_file_check_table_accessible (第 93-104 行) ---
+第 93-104 行：驗證 radarFileCheck 快照資料表：
+             取最多 10 筆，逐一驗證 FileTime 為非負數（Unix timestamp 不應為負）。
+
+--- test_file_type_list_table_accessible (第 106-115 行) ---
+第 106-115 行：驗證 FileTypeList 儀器主列表：
+             第 113 行：`assert len(rows) >= 1` → 至少有一筆儀器記錄（前提是系統已設定儀器）。
+             第 115 行：每台儀器的 FileType 不應為空字串或 NULL。
+
+--- test_diff_time_is_non_negative (第 117-127 行) ---
+第 117-127 行：資料完整性測試：
+             驗證 radarFileCheck 中所有非 NULL 的 DiffTime 均為非負數。
+             負的時間差在物理上不合理（代表資料時間早於當前時間）。
+
+================================================================
+TestSystemStatusDB 測試類別 (第 134-165 行)
+驗證 SystemStatus 資料庫的兩個資料表
+================================================================
+
+--- test_check_list_table_accessible (第 143-155 行) ---
+第 143-155 行：驗證 CheckList 資料表：
+             第 153-155 行：驗證 MemoryUSE 在 0~100 範圍內（記憶體使用率為百分比）。
+
+--- test_system_ip_list_table_accessible (第 157-165 行) ---
+第 157-165 行：驗證 SystemIPList 設備對應表：
+             每筆記錄的 IP 不應為空（IP 是主鍵/識別碼）。
+
+================================================================
+TestDiskStatusDB 測試類別 (第 172-202 行)
+驗證 DiskStatus 資料庫的兩個資料表
+================================================================
+
+--- test_check_list_table_accessible (第 181-192 行) ---
+第 181-192 行：驗證 DiskStatus.CheckList 磁碟快照資料表：
+             第 190-192 行：驗證 Used（磁碟使用量）不應為負數。
+
+--- test_status_history_table_accessible (第 194-202 行) ---
+第 194-202 行：驗證 Status 歷史記錄資料表（取最新 5 筆）：
+             只要不拋出例外即代表資料表存在且可讀取。
+             不做進一步的資料驗證（歷史表可能為空）。
+
+================================================================
+TestSessionBehavior 測試類別 (第 209-230 行)
+驗證 get_session() context manager 在實際連線下的行為
+================================================================
+
+--- test_session_executes_select_1 (第 212-219 行) ---
+第 212-219 行：最基本的端對端測試：
+             開啟真實 Session，執行 "SELECT 1 AS val"，
+             驗證回傳值確實為 1（確認整個查詢執行流程正常）。
+
+--- test_readonly_no_write_permission_needed (第 221-230 行) ---
+第 221-230 行：唯讀查詢權限驗證：
+             執行 SELECT COUNT(*) FROM radarStatus，
+             確認只需要 SELECT 權限即可（符合最小權限原則）。
+             若資料庫帳號被誤設為唯讀，此測試能驗證基本查詢功能不受影響。

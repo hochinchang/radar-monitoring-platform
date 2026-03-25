@@ -1,0 +1,145 @@
+================================================================
+檔案：tests/unit/test_database.py
+功能：database.py 的單元測試（Unit Tests）。
+      使用 MagicMock 模擬 SQLAlchemy Engine 與 Session，
+      在不需要實際 DB 連線的情況下，驗證連線池邏輯、Session 交易行為，
+      以及 check_connection 的重試機制。
+================================================================
+
+--- 模組說明字串 (第 1-4 行) ---
+第 1-4 行：docstring，說明測試覆蓋範圍：get_engine 延遲初始化、
+           無效 db_name、get_session 行為、check_connection 重試邏輯。
+
+--- 匯入區塊 (第 6-10 行) ---
+第 6 行：`from __future__ import annotations`
+         啟用延遲型別評估。
+
+第 8 行：`import pytest`
+         pytest 框架。
+
+第 9 行：`from unittest.mock import MagicMock, patch, call`
+         MagicMock → 自動模擬物件，所有屬性和方法呼叫都自動建立並可被驗證。
+         patch     → 暫時替換模組中的函式（用於替換 time.sleep）。
+         call      → 用來建構「預期的函式呼叫」物件，供 assert_called 等方法比對。
+
+第 10 行：`from sqlalchemy.exc import OperationalError`
+          用於建構模擬的 DB 連線失敗例外。
+
+--- _make_op_error 輔助函式 (第 17-18 行) ---
+第 17 行：`def _make_op_error() -> OperationalError:`
+          私有輔助函式，建立一個模擬的 OperationalError（資料庫連線拒絕錯誤）。
+
+第 18 行：`return OperationalError("connection refused", None, None)`
+          建立 OperationalError 實例：
+            "connection refused" → 模擬的錯誤訊息
+            None, None           → params 和 orig 參數，單元測試不需要真實值
+
+================================================================
+TestGetEngine 測試類別 (第 25-47 行)
+驗證 get_engine() 的延遲初始化和快取行為
+================================================================
+
+--- test_returns_engine_for_valid_db (第 26-32 行) ---
+第 26-32 行：測試 get_engine("file_status") 回傳非 None 的 Engine 物件。
+    第 29-30 行：清空 _engines 和 _session_factories，確保 Engine 從頭建立（不使用快取）。
+                 這是「測試隔離」：避免不同測試之間互相影響。
+    第 32 行：`assert engine is not None`
+              驗證 Engine 物件已成功建立。
+
+--- test_same_engine_returned_on_second_call (第 34-42 行) ---
+第 34-42 行：測試快取行為：連續呼叫兩次 get_engine() 應回傳同一個物件（Singleton 行為）。
+    第 41 行：`e1 = db_module.get_engine("system_status")`
+              第一次呼叫，建立並快取 Engine。
+    第 42 行：`e2 = db_module.get_engine("system_status")`
+              第二次呼叫，應直接從快取取得。
+    第 43 行：`assert e1 is e2`
+              `is` 比較物件身份（記憶體位址），確保是同一個實例，而非兩個相等的不同物件。
+
+--- test_raises_for_unknown_db_name (第 44-47 行) ---
+第 44-47 行：測試輸入驗證：
+    `with pytest.raises(ValueError, match="Unknown db_name"):`
+    驗證傳入不存在的資料庫名稱時，拋出 ValueError 且錯誤訊息包含 "Unknown db_name"。
+
+================================================================
+TestGetSession 測試類別 (第 54-93 行)
+驗證 get_session() 的交易管理行為
+================================================================
+
+--- test_raises_for_unknown_db_name (第 55-59 行) ---
+第 55-59 行：測試無效 db_name 的例外拋出，與 get_engine 的驗證一致。
+
+--- test_session_commits_on_success (第 61-76 行) ---
+第 61-76 行：測試正常路徑：with 區塊內無例外時應呼叫 commit。
+    第 66 行：`mock_session = MagicMock()`
+              建立模擬 Session 物件，所有方法（commit、rollback、close）自動成為 Mock。
+    第 67 行：`mock_factory = MagicMock(return_value=mock_session)`
+              建立模擬 sessionmaker 工廠，呼叫時回傳 mock_session。
+    第 68 行：`db_module._session_factories["disk_status"] = mock_factory`
+              直接注入模擬工廠，繞過實際 DB 初始化。
+    第 70-71 行：注入模擬 Engine（防止 _init_engine 被觸發）。
+
+    第 72-73 行：使用 get_session 的 context manager，取得的 session 應為 mock_session。
+    第 75 行：`mock_session.commit.assert_called_once()`
+              斷言 commit 被呼叫了恰好一次（正常結束後提交交易）。
+    第 76 行：`mock_session.close.assert_called_once()`
+              斷言 close 被呼叫了恰好一次（finally 區塊）。
+
+--- test_session_rolls_back_on_exception (第 78-93 行) ---
+第 78-93 行：測試異常路徑：with 區塊內拋出例外時應呼叫 rollback。
+    第 83-86 行：注入模擬 Session 和 Engine。
+    第 88-90 行：`with pytest.raises(RuntimeError): with db_module.get_session("disk_status"): raise RuntimeError("boom")`
+                 在 with 區塊中手動拋出 RuntimeError，模擬查詢失敗。
+                 pytest.raises 確保例外確實被拋出（不被靜默吞掉）。
+    第 92 行：`mock_session.rollback.assert_called_once()`
+              驗證異常時回滾交易被呼叫。
+    第 93 行：`mock_session.close.assert_called_once()`
+              驗證即使有例外，finally 區塊的 close 仍被執行。
+
+================================================================
+TestCheckConnection 測試類別 (第 100-171 行)
+驗證 check_connection() 的重試邏輯（需求 6.4, 6.5）
+================================================================
+
+--- test_returns_true_on_first_success (第 101-113 行) ---
+第 101-113 行：測試連線第一次就成功的情況。
+    第 107-109 行：設定模擬 Engine 的 connect() 作為 context manager：
+                  __enter__ 回傳模擬連線物件，__exit__ 回傳 False（表示無例外）。
+    第 110 行：注入模擬 Engine。
+    第 112 行：呼叫 check_connection。
+    第 113 行：`assert result is True`
+              驗證成功時回傳 True。
+
+--- test_retries_up_to_max_attempts_then_returns_false (第 115-130 行) ---
+第 115-130 行：測試所有重試均失敗後回傳 False（核心重試邏輯）。
+    第 121 行：`mock_engine.connect.side_effect = _make_op_error()`
+              設定 connect() 每次呼叫都拋出 OperationalError。
+    第 124 行：`with patch("backend.database.time.sleep") as mock_sleep:`
+              替換 time.sleep 為 Mock，避免測試真的等待（加速測試）。
+    第 127 行：`assert result is False`
+              所有重試失敗後應回傳 False。
+    第 129 行：`assert mock_engine.connect.call_count == 3`
+              connect 被呼叫了 3 次（max_reconnect_attempts=3）。
+    第 130 行：`assert mock_sleep.call_count == 2`
+              sleep 被呼叫了 2 次（3 次嘗試之間有 2 個間隔，最後一次失敗後不 sleep）。
+
+--- test_sleep_interval_matches_config (第 132-147 行) ---
+第 132-147 行：驗證 sleep 的等待時間符合設定值。
+    第 141-142 行：mock sleep，執行 check_connection（所有重試均失敗）。
+    第 144-145 行：從設定取出 reconnect_interval_seconds。
+    第 146-147 行：`for c in mock_sleep.call_args_list: assert c == call(expected_interval)`
+                  驗證每次 sleep 呼叫的參數都等於設定中的間隔秒數。
+                  call(expected_interval) 建立預期的呼叫記錄，與實際呼叫記錄比對。
+
+--- test_succeeds_on_second_attempt (第 149-165 行) ---
+第 149-165 行：測試第一次失敗、第二次成功的情況（驗證重試後成功能正確處理）。
+    第 159 行：`mock_engine.connect.side_effect = [_make_op_error(), mock_conn]`
+              side_effect 為列表時，第一次呼叫使用第一個元素（拋出例外），
+              第二次呼叫使用第二個元素（回傳正常連線）。
+    第 163 行：`assert result is True`
+              第二次重試成功，最終回傳 True。
+    第 165 行：`assert mock_engine.connect.call_count == 2`
+              確認只呼叫了兩次（第一次失敗，第二次成功後停止）。
+
+--- test_raises_for_unknown_db_name (第 168-171 行) ---
+第 168-171 行：測試 check_connection 的輸入驗證，
+              傳入不存在的 db_name 應拋出 ValueError。

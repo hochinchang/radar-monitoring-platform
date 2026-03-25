@@ -1,0 +1,59 @@
+================================================================
+檔案：backend/routers/system.py
+功能：定義 /api/v1/system/current 和 /api/v1/disk/current 兩個 REST API 端點。
+      分別回傳電腦系統（CPU/記憶體）狀態與磁碟使用狀態。
+================================================================
+
+--- 模組說明字串 (第 1-3 行) ---
+第 1-3 行：docstring，說明此路由器負責 /api/v1/system/* 和 /api/v1/disk/* 端點。
+
+--- 匯入區塊 (第 4-7 行) ---
+第 4 行：`from __future__ import annotations`
+         啟用延遲型別評估。
+
+第 5 行：`import logging`
+         匯入日誌模組。
+
+第 6 行：`from fastapi import APIRouter`
+         匯入路由群組物件。
+
+第 7 行：`from backend.services.system_service import get_system_status, get_disk_status`
+         匯入兩個服務函式：
+           get_system_status → 查詢 SystemStatus DB，取得 CPU/記憶體資料
+           get_disk_status   → 查詢 DiskStatus DB，取得磁碟使用量資料
+
+--- 路由器初始化 (第 9-10 行) ---
+第 9 行：`logger = logging.getLogger("routers.system")`
+         建立此路由模組的日誌紀錄器。
+
+第 10 行：`router = APIRouter(tags=["system"])`
+          建立路由器，注意此處沒有設定 prefix。
+          原因：system 和 disk 兩組端點的路徑前綴不同
+          (/api/v1/system 和 /api/v1/disk)，無法共用單一前綴，
+          因此路徑直接寫完整路徑（見下方端點定義）。
+
+--- GET /api/v1/system/current 端點 (第 13-15 行) ---
+第 13 行：`@router.get("/api/v1/system/current")`
+          綁定 GET /api/v1/system/current 端點。
+          未設定 response_model，回應結構由 Python dict 動態決定。
+
+第 14 行：`def current_system_status():`
+          端點處理函式，無路徑參數或查詢參數。
+
+第 15 行：`return {"items": get_system_status()}`
+          直接呼叫 system_service.get_system_status() 取得結果列表，
+          包裝在 {"items": [...]} 字典中回傳。
+          若 DB 連線失敗，get_system_status() 回傳空列表 []，
+          前端收到 {"items": []} 可顯示「無資料」狀態。
+
+--- GET /api/v1/disk/current 端點 (第 18-20 行) ---
+第 18 行：`@router.get("/api/v1/disk/current")`
+          綁定 GET /api/v1/disk/current 端點。
+
+第 19 行：`def current_disk_status():`
+          端點處理函式，無路徑參數或查詢參數。
+
+第 20 行：`return {"items": get_disk_status()}`
+          呼叫 system_service.get_disk_status() 取得磁碟狀態列表，
+          以 {"items": [...]} 格式回傳。
+          結構與 system/current 一致，方便前端使用相同的渲染邏輯。
