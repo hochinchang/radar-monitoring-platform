@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>儀器即時狀況 — 雷達監控整合平台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <a href="/" class="back-link">← 首頁</a>
+      <h1>儀器即時狀況</h1>
+    </div>
+    <div class="time-bar">
+      <span>本地時間：<span id="local-time">--</span></span>
+      <span>UTC：<span id="utc-time">--</span></span>
+      <span class="refresh-info">
+        上次更新：<span id="last-refreshed">--</span>
+        <button id="btn-refresh">⟳ 刷新</button>
+      </span>
+    </div>
+  </header>
+
+  <main>
+    <div id="status-bar" class="status-bar hidden"></div>
+
+    <!-- 儀器警示狀態 -->
+    <section class="section">
+      <h2>儀器警示狀態</h2>
+      <div id="instruments-grid" class="instruments-grid">
+        <p class="loading">載入中…</p>
+      </div>
+    </section>
+
+    <!-- 時間序列圖 -->
+    <section class="section">
+      <h2>資料完整率趨勢</h2>
+      <div class="chart-controls">
+        <label>起始時間
+          <input type="datetime-local" id="input-start" />
+        </label>
+        <label>結束時間
+          <input type="datetime-local" id="input-end" />
+        </label>
+        <button id="btn-query">查詢</button>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="completeness-chart"></canvas>
+        <p id="chart-no-data" class="no-data hidden">所選區間無資料</p>
+      </div>
+    </section>
+
+    <!-- 儀器閾值設定 -->
+    <section class="section">
+      <h2>儀器閾值設定</h2>
+      <table id="threshold-table">
+        <thead>
+          <tr>
+            <th>儀器代碼</th>
+            <th>設備名稱</th>
+            <th>最大時間差閾值（分鐘）</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="threshold-tbody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/chart.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
