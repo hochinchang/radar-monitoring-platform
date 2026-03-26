@@ -1,0 +1,147 @@
+================================================================
+檔案：tests/integration/test_api.py
+功能：API 整合測試。使用 FastAPI TestClient + unittest.mock 模擬服務層，
+      驗證各 HTTP 端點的回應狀態碼與回應內容格式是否正確。
+      屬於「Contract Test」—— 確保 API 介面符合設計規格。
+================================================================
+
+--- 模組說明字串 (第 1-5 行) ---
+第 1-5 行：docstring，說明測試方法（TestClient + pytest-mock）與測試目標。
+
+--- 匯入區塊 (第 7-16 行) ---
+第 7 行：`from __future__ import annotations`
+         啟用延遲型別評估。
+
+第 9 行：`from datetime import datetime, timezone`
+         用於建立測試資料中的時間物件。
+
+第 10 行：`from unittest.mock import patch`
+          Python 標準庫的模擬工具：
+          patch() 暫時替換模組中的函式/物件為 Mock 物件，
+          測試結束後自動還原，確保測試之間互相隔離。
+
+第 12 行：`import pytest`
+          pytest 測試框架，此處供 fixture 和 assert 使用。
+
+第 13 行：`from fastapi.testclient import TestClient`
+          FastAPI 官方測試用戶端，不需要啟動實際伺服器，
+          直接在記憶體中模擬 HTTP 請求和回應。
+
+第 15 行：`from backend.main import app`
+          匯入 FastAPI 應用程式實例，提供給 TestClient 使用。
+
+第 16 行：`from backend.models import InstrumentStatus`
+          匯入 InstrumentStatus 模型，用於建構測試資料。
+
+--- TestClient 初始化 (第 17 行) ---
+第 17 行：`client = TestClient(app)`
+          建立模組級的測試用戶端，所有測試類別共用此實例，
+          避免每個測試函式重複建立，提升執行效率。
+
+--- _make_instrument 輔助函式 (第 21-29 行) ---
+第 21 行：`def _make_instrument(file_type="RADAR_A", is_alert=False, diff=5.0):`
+          測試輔助函式，用預設值快速建立 InstrumentStatus 物件。
+          提供預設參數讓各測試只傳入關心的欄位，其餘使用合理預設值。
+
+第 22-29 行：建立並回傳 InstrumentStatus 物件，所有欄位填入合理的測試資料：
+             - latest_file_time → 固定為 2024-01-15 10:00 UTC（確保測試結果可重現）
+             - max_diff_time_threshold → 30.0 分鐘
+             - equipment_name → f"站台 {file_type}"（動態產生）
+
+================================================================
+TestCurrentStatus 測試類別 (第 34-58 行)
+測試對象：GET /api/v1/completeness/current
+================================================================
+
+--- test_returns_200_with_instruments (第 35-44 行) ---
+第 35 行：`def test_returns_200_with_instruments(self):`
+          測試正常情況：有儀器資料時應回傳 200 OK。
+
+第 36 行：`instruments = [_make_instrument("RADAR_A"), _make_instrument("RADAR_B")]`
+          建立兩台儀器的測試資料。
+
+第 37-39 行：`with patch("backend.routers.completeness.get_all_instrument_statuses", return_value=instruments):`
+             暫時替換路由模組中的 get_all_instrument_statuses 函式，
+             讓它直接回傳測試資料，不實際查詢資料庫。
+             路徑 "backend.routers.completeness.get_all_instrument_statuses" 指向
+             在 completeness 路由模組中被匯入的函式（需 patch 使用點，而非定義點）。
+
+第 39 行：`res = client.get("/api/v1/completeness/current")`
+          發送 GET 請求給測試用戶端。
+
+第 40-44 行：斷言：
+             res.status_code == 200          → HTTP 狀態碼為 200
+             data["status"] == "ok"           → 回應 JSON 中 status 為 "ok"
+             len(data["instruments"]) == 2    → 包含兩台儀器
+             data["instruments"][0]["file_type"] == "RADAR_A" → 第一台為 RADAR_A
+
+--- test_returns_503_when_db_error (第 46-50 行) ---
+第 46-50 行：測試 DB 錯誤降級情況：
+             當 get_all_instrument_statuses 回傳空列表（模擬 DB 失敗），
+             端點應回傳 503 Service Unavailable。
+
+--- test_alert_instrument_has_is_alert_true (第 52-58 行) ---
+第 52-58 行：測試警報儀器的欄位正確性：
+             建立 is_alert=True、diff=45.0 的儀器，
+             確認回應 JSON 中 is_alert 欄位確為 True。
+
+================================================================
+TestTimeSeries 測試類別 (第 63-94 行)
+測試對象：GET /api/v1/completeness/timeseries
+================================================================
+
+--- test_returns_200_with_default_range (第 64-78 行) ---
+第 64-78 行：測試預設時間範圍（不傳 start/end）的正常情況：
+             建立一個 TimeSeriesPoint 物件作為 mock 回傳值，
+             驗證回應 200 且資料點數量與完整率正確。
+
+--- test_returns_200_with_custom_range (第 80-87 行) ---
+第 80-87 行：測試自訂時間範圍（?start=...&end=...）：
+             mock get_time_series 回傳空列表，
+             驗證回應 200 且 data 為空陣列（合法的無資料回應）。
+
+--- test_returns_422_when_start_after_end (第 89-94 行) ---
+第 89-94 行：測試無效時間範圍（start 晚於 end）：
+             此測試不需要 mock，直接傳入不合理的時間參數，
+             驗證路由層的輸入驗證回傳 422 Unprocessable Entity。
+
+================================================================
+TestGetInstruments 測試類別 (第 99-116 行)
+測試對象：GET /api/v1/instruments
+================================================================
+
+--- test_returns_instrument_list (第 100-110 行) ---
+第 100-110 行：建立兩台儀器的 dict 資料，mock list_instruments，
+              驗證回應 200 且 instruments 列表長度正確，第一筆為 RADAR_A。
+
+--- test_returns_empty_list_on_db_error (第 112-116 行) ---
+第 112-116 行：mock list_instruments 回傳空列表（模擬 DB 失敗），
+              驗證此端點回傳 200（而非錯誤碼），instruments 為空陣列。
+              注意：此端點設計為「有資料顯示、無資料顯示空」，不回傳 5xx。
+
+================================================================
+TestUpdateThreshold 測試類別 (第 121-166 行)
+測試對象：PUT /api/v1/instruments/{file_type}/threshold
+================================================================
+
+--- test_returns_200_on_valid_update (第 122-136 行) ---
+第 122-136 行：測試正常更新流程：
+    第 126-128 行：同時 mock 兩個函式（list_instruments 和 set_instrument_threshold）。
+    第 129-132 行：發送 PUT 請求，body 為 JSON {"max_diff_time_threshold": 45.0}。
+    第 133-136 行：驗證回應 200，欄位值正確，
+                  mock_set.assert_called_once_with("RADAR_A", 45.0) 確認服務層被正確呼叫。
+
+--- test_returns_404_for_unknown_file_type (第 138-145 行) ---
+第 138-145 行：「需求 7.1」測試：
+              mock list_instruments 回傳空列表（模擬 UNKNOWN 不存在），
+              驗證回傳 404 Not Found。
+
+--- test_returns_422_for_negative_threshold (第 147-153 行) ---
+第 147-153 行：「需求 7.5」測試：
+              傳入 -1.0 的負數閾值，
+              驗證 Pydantic 的 Field(ge=0) 驗證自動回傳 422（不需要 mock，由框架處理）。
+
+--- test_returns_422_for_zero_is_valid (第 155-166 行) ---
+第 155-166 行：邊界值測試（0.0 應被接受）：
+              驗證 ge=0 表示「大於等於 0」，即 0.0 是合法值，應回傳 200 而非 422。
+              mock set_instrument_threshold 確保不會拋出 ValueError（threshold >= 0 驗證）。

@@ -1,0 +1,143 @@
+================================================================
+檔案：backend/models.py
+功能：定義所有 API 請求與回應的 Pydantic 資料模型（Data Models）。
+      這些模型負責資料驗證、序列化（Python → JSON）與文件產生。
+================================================================
+
+--- 模組說明字串 (第 1-3 行) ---
+第 1-3 行：docstring，說明此模組包含 Pydantic 資料模型。
+
+--- 匯入區塊 (第 5-10 行) ---
+第 5 行：`from __future__ import annotations`
+         啟用延遲型別評估，支援 X | Y 形式的 Union 型別語法。
+
+第 7 行：`from datetime import datetime`
+         匯入日期時間型別，用於時間相關欄位的型別標注。
+
+第 8 行：`from typing import Literal`
+         匯入 Literal 型別，用於限制欄位只能是特定的幾個字串值。
+
+第 10 行：`from pydantic import BaseModel, Field`
+          BaseModel → 所有 Pydantic 模型的基底類別，提供驗證與序列化功能。
+          Field     → 為欄位添加額外驗證規則（如最小值 ge）或描述資訊。
+
+--- CompletenessResult 模型 (第 15-18 行) ---
+第 15 行：`class CompletenessResult(BaseModel):`
+          核心領域模型，代表一次完整率計算的結果。繼承 BaseModel。
+
+第 16 行：`completeness_rate: float  # 0.0 ~ 100.0`
+          完整率數值，浮點數，範圍 0.0 到 100.0（百分比）。
+          由 completeness_service 的 _clamp 函式確保在此範圍內。
+
+第 17 行：`calculated_at: datetime`
+          計算時間點，datetime 物件（含時區資訊），
+          Pydantic 會自動將其序列化為 ISO 8601 字串輸出至 JSON。
+
+第 18 行：`status: Literal["ok", "no_data", "db_error"]`
+          狀態碼，Literal 限制只能是三個字串之一：
+            "ok"       → 計算正常
+            "no_data"  → 查詢無資料
+            "db_error" → 資料庫連線失敗
+
+--- TimeSeriesPoint 模型 (第 21-24 行) ---
+第 21 行：`class TimeSeriesPoint(BaseModel):`
+          時間序列上的單一資料點，代表某一小時的完整率。
+
+第 22 行：`timestamp: datetime`
+          此資料點對應的時間（小時整點，UTC）。
+
+第 23 行：`completeness_rate: float`
+          該小時的完整率（0.0 ~ 100.0）。
+
+第 24 行：`is_alert: bool`
+          是否觸發警報，True 表示此小時完整率低於 90.0%（警報閾值）。
+
+--- InstrumentStatus 模型 (第 27-33 行) ---
+第 27 行：`class InstrumentStatus(BaseModel):`
+          單一儀器的目前狀態，包含識別資訊與警報判斷。
+
+第 28 行：`file_type: str`
+          儀器的唯一識別碼（對應資料庫 FileType 欄位，如 "RADAR_A"）。
+
+第 29 行：`equipment_name: str`
+          儀器的中文或人類可讀名稱（從 FileTypeList.EquipmentName 讀取）。
+
+第 30 行：`latest_file_time: datetime | None`
+          最新一筆資料的時間戳記，None 表示從未有資料（新儀器或資料從未到達）。
+          `X | None` 是 Python 3.10+ 的 Optional 語法。
+
+第 31 行：`diff_time_minutes: float | None  # non-negative or None`
+          距今最新資料的時間差（分鐘），None 表示無資料（同上）。
+          正常狀況下為非負數（由 max(0.0, ...) 確保）。
+
+第 32 行：`max_diff_time_threshold: float   # ge=0`
+          此儀器的最大允許時間差閾值（分鐘），超過則觸發警報。
+          ge=0 的驗證在 InstrumentThresholdSetting 中，此處為顯示用。
+
+第 33 行：`is_alert: bool`
+          是否觸發警報：diff_time_minutes > max_diff_time_threshold 或資料為 None 時為 True。
+
+--- InstrumentThresholdSetting 模型 (第 36-37 行) ---
+第 36 行：`class InstrumentThresholdSetting(BaseModel):`
+          PUT /api/v1/instruments/{file_type}/threshold 的請求 Body 模型。
+          用於接收前端傳來的閾值更新請求。
+
+第 37 行：`max_diff_time_threshold: float = Field(ge=0.0)`
+          新閾值（分鐘），Field(ge=0.0) 表示「大於等於 0」的驗證規則。
+          若傳入負數，Pydantic 自動回傳 422 Unprocessable Entity。
+
+--- CurrentStatusResponse 模型 (第 42-45 行) ---
+第 42 行：`class CurrentStatusResponse(BaseModel):`
+          GET /api/v1/completeness/current 的回應模型，包裝儀器列表。
+
+第 43 行：`instruments: list[InstrumentStatus]`
+          所有儀器的狀態列表，每個元素為 InstrumentStatus 物件。
+
+第 44 行：`calculated_at: datetime`
+          此次查詢的計算時間點（UTC）。
+
+第 45 行：`status: str`
+          整體狀態字串（"ok" 或 "db_error"），此處為 str 而非 Literal，
+          保留未來擴充彈性。
+
+--- TimeSeriesResponse 模型 (第 48-51 行) ---
+第 48 行：`class TimeSeriesResponse(BaseModel):`
+          GET /api/v1/completeness/timeseries 的回應模型。
+
+第 49 行：`data: list[TimeSeriesPoint]`
+          時間序列資料點列表，依時間正序排列。
+
+第 50 行：`start: datetime`
+          此次查詢的起始時間（由請求參數或預設值 24 小時前決定）。
+
+第 51 行：`end: datetime`
+          此次查詢的結束時間（由請求參數或預設值現在時刻決定）。
+
+--- InstrumentListItem 模型 (第 54-57 行) ---
+第 54 行：`class InstrumentListItem(BaseModel):`
+          GET /api/v1/instruments 回應中，單一儀器的簡要資訊。
+
+第 55 行：`file_type: str`        儀器識別碼。
+第 56 行：`equipment_name: str`   儀器名稱。
+第 57 行：`max_diff_time_threshold: float`  目前設定的警報閾值（分鐘）。
+
+--- InstrumentListResponse 模型 (第 60-61 行) ---
+第 60 行：`class InstrumentListResponse(BaseModel):`
+          GET /api/v1/instruments 的完整回應包裝器。
+
+第 61 行：`instruments: list[InstrumentListItem]`
+          所有儀器的簡要資訊列表。
+
+--- ThresholdUpdateResponse 模型 (第 64-67 行) ---
+第 64 行：`class ThresholdUpdateResponse(BaseModel):`
+          PUT /api/v1/instruments/{file_type}/threshold 的回應模型，
+          確認更新已成功套用。
+
+第 65 行：`file_type: str`
+          被更新的儀器識別碼（回傳給前端確認操作了正確的儀器）。
+
+第 66 行：`max_diff_time_threshold: float`
+          更新後的新閾值（回傳確認值，方便前端驗證）。
+
+第 67 行：`updated_at: datetime`
+          更新完成的時間點（UTC），提供操作審計記錄。

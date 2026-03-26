@@ -1,0 +1,184 @@
+================================================================
+檔案：backend/services/alert_service.py
+功能：儀器警報服務。查詢 radarFileCheck 快照資料表，計算每台儀器的
+      資料延遲（diff_time_minutes），並與閾值比較來判斷是否觸發警報。
+      同時管理記憶體中的每台儀器閾值設定。
+================================================================
+
+--- 模組說明字串 (第 1-5 行) ---
+第 1-5 行：docstring，說明此服務查詢 radarFileCheck，計算 diff_time_minutes，
+           並與閾值比較。
+
+--- 匯入區塊 (第 7-17 行) ---
+第 7 行：`from __future__ import annotations`
+         啟用延遲型別評估。
+
+第 9 行：`import logging`
+         日誌模組。
+
+第 10 行：`from datetime import datetime, timezone`
+          datetime → 將 Unix timestamp 轉換為 datetime 物件。
+          timezone → 使用 timezone.utc 確保時間帶有 UTC 時區資訊。
+
+第 12 行：`from sqlalchemy import text`
+          將 SQL 字串包裝為安全的 SQLAlchemy 文字物件。
+
+第 13 行：`from sqlalchemy.exc import OperationalError, SQLAlchemyError`
+          捕捉資料庫連線與查詢錯誤。
+
+第 15 行：`from backend.config import get_config`
+          取得應用程式設定（預設閾值、查詢逾時等）。
+
+第 16 行：`from backend.database import get_session`
+          取得資料庫 Session 的 context manager。
+
+第 17 行：`from backend.models import InstrumentStatus`
+          匯入儀器狀態 Pydantic 模型，用於建構回傳物件。
+
+--- 模組級變數 (第 19-33 行) ---
+第 19 行：`logger = logging.getLogger("alert_service")`
+          建立此服務的日誌紀錄器。
+
+第 22-23 行：
+    `# Runtime threshold store: file_type -> threshold (minutes)`
+    `# Initialised from config.yaml on first access; persists in memory until restart.`
+    說明：_thresholds 是記憶體中的閾值字典，程式啟動後從 config.yaml 初始化，
+    執行期間可透過 API 動態修改，但重啟後會重設。
+
+第 23 行：`_thresholds: dict[str, float] = {}`
+          模組級私有字典：鍵為 FileType（如 "RADAR_A"），值為閾值（分鐘）。
+          空字典表示尚未從 config 初始化。
+
+第 25-33 行：`_INSTRUMENT_STATUS_SQL = text("""...""")`
+             SQL 查詢字串常數（提前定義，避免每次呼叫重複解析）：
+               SELECT ftl.FileType          → 儀器識別碼
+               SELECT ftl.EquipmentName     → 儀器名稱
+               SELECT rfc.FileTime          → 最新檔案的 Unix 時間戳記
+               TIMESTAMPDIFF(SECOND, FROM_UNIXTIME(rfc.FileTime), NOW()) / 60.0
+                                            → 計算距今的時間差（分鐘）
+               FROM FileTypeList ftl        → 儀器主列表
+               LEFT JOIN radarFileCheck rfc → 左連接最新快照
+                 ON ftl.FileType = rfc.FileType
+               LEFT JOIN 確保即使 radarFileCheck 沒有對應記錄，
+               FileTypeList 中的儀器仍會出現在結果中（FileTime 為 NULL）。
+
+--- _get_thresholds 函式 (第 36-47 行) ---
+第 36 行：`def _get_thresholds() -> dict[str, float]:`
+          私有函式，回傳閾值字典，首次呼叫時從 config 初始化（Lazy Init）。
+
+第 38 行：`if not _thresholds:`
+          若字典為空（尚未初始化），執行初始化邏輯。
+
+第 39 行：`cfg = get_config()`
+          取得應用程式設定。
+
+第 40 行：`default = cfg.system.default_max_diff_time_threshold`
+          取得全域預設閾值（當特定儀器未設定時使用）。
+
+第 41-42 行：`for file_type, inst_cfg in cfg.instruments.items(): _thresholds[file_type] = ...`
+             遍歷 config.yaml 中的所有儀器設定，逐一填入閾值字典。
+
+第 43-46 行：記錄初始化完成的 INFO 日誌，包含儀器數量與預設閾值。
+
+第 47 行：`return _thresholds`
+          回傳已初始化的閾值字典（或已有資料的字典）。
+
+--- get_all_instrument_statuses 函式 (第 50-100 行) ---
+第 50 行：`def get_all_instrument_statuses() -> list[InstrumentStatus]:`
+          公開函式，查詢所有儀器的最新狀態並判斷是否警報。
+
+第 52-54 行：取得閾值字典、全域預設閾值、查詢逾時設定。
+
+第 56-65 行：資料庫查詢區塊：
+    第 61 行：`with get_session("file_status") as session:`
+              使用 context manager 取得 file_status 資料庫的 Session。
+
+    第 62-63 行：執行 _INSTRUMENT_STATUS_SQL 查詢，
+                 .execution_options(timeout=timeout) 設定查詢逾時時間（秒）。
+
+    第 64 行：`rows = result.fetchall()`
+              一次取出所有查詢結果。
+
+    第 66-68 行：`except (OperationalError, SQLAlchemyError) as exc:`
+                捕捉 DB 錯誤，記錄 ERROR 日誌後回傳空列表（服務降級，不拋例外）。
+
+第 70 行：`statuses: list[InstrumentStatus] = []`
+          初始化結果列表。
+
+第 71 行：`for row in rows:`
+          遍歷每一筆查詢結果。
+
+第 72 行：`file_type: str = row.FileType`
+          取出儀器識別碼。
+
+第 73 行：`threshold = thresholds.get(file_type, default_threshold)`
+          取出此儀器的閾值，若字典中沒有此儀器（非 config.yaml 中預先設定的），
+          使用全域預設值（default_threshold）。
+
+第 75-85 行：處理「無資料」情況：
+             若 FileTime 或 diff_time_minutes 為 NULL（LEFT JOIN 無對應記錄），
+             建立 is_alert=True 的 InstrumentStatus（缺資料視為警報），
+             latest_file_time 和 diff_time_minutes 均為 None，
+             然後 continue 跳過後續正常處理。
+
+第 87 行：`diff = max(0.0, float(row.diff_time_minutes))`
+          將 diff_time_minutes 轉為浮點數，並確保不小於 0。
+          max(0.0, ...) 防止因資料庫時鐘誤差造成的微小負值。
+
+第 88 行：`latest_file_time = datetime.fromtimestamp(float(row.FileTime), tz=timezone.utc)`
+          將 Unix 時間戳（秒數）轉換為有時區資訊的 UTC datetime 物件。
+          float() 轉換確保資料型別正確。
+
+第 90-97 行：建立正常情況的 InstrumentStatus：
+             is_alert=diff > threshold → 若延遲超過閾值則觸發警報。
+
+第 99 行：`logger.info("get_all_instrument_statuses: %d instruments queried", len(statuses))`
+          記錄查詢到的儀器數量。
+
+第 100 行：`return statuses`
+           回傳儀器狀態列表。
+
+--- get_instrument_threshold 函式 (第 103-107 行) ---
+第 103 行：`def get_instrument_threshold(file_type: str) -> float:`
+           公開函式，取得指定儀器的目前閾值。
+
+第 105 行：`thresholds = _get_thresholds()`
+           確保閾值字典已初始化。
+
+第 106 行：`default = get_config().system.default_max_diff_time_threshold`
+           取出全域預設閾值備用。
+
+第 107 行：`return thresholds.get(file_type, default)`
+           回傳指定儀器的閾值，若不存在則回傳全域預設值。
+
+--- set_instrument_threshold 函式 (第 110-115 行) ---
+第 110 行：`def set_instrument_threshold(file_type: str, threshold_minutes: float) -> None:`
+           公開函式，更新指定儀器的記憶體閾值。
+
+第 112-113 行：`if threshold_minutes < 0: raise ValueError(...)`
+              額外的後端防護驗證（雖然 Pydantic 層已驗證 ge=0，此處為雙重保護）。
+
+第 114 行：`_get_thresholds()[file_type] = threshold_minutes`
+           更新記憶體中的閾值字典，鍵為 file_type，值為新閾值。
+           注意：這只影響記憶體，不寫入 config.yaml，重啟後恢復原值。
+
+第 115 行：`logger.info("Threshold updated: %s -> %.1f min", ...)`
+           記錄閾值更新的 INFO 日誌（%.1f 格式化至一位小數）。
+
+--- list_instruments 函式 (第 118-144 行) ---
+第 118 行：`def list_instruments() -> list[dict]:`
+           公開函式，從 FileTypeList 查詢所有儀器，附上目前的閾值設定。
+
+第 123-124 行：取得閾值字典、預設閾值、查詢逾時設定。
+
+第 127-135 行：資料庫查詢：
+    第 130 行：執行 SELECT FileType, EquipmentName FROM FileTypeList，
+               取得儀器主列表。
+               不需要 JOIN radarFileCheck（只需基本資訊，不需即時狀態）。
+
+    第 133-135 行：捕捉 DB 錯誤，記錄後回傳空列表。
+
+第 137-144 行：列表推導式，將每筆查詢結果轉為字典：
+               "file_type"              → row.FileType
+               "equipment_name"         → row.EquipmentName or "" （NULL 時用空字串）
+               "max_diff_time_threshold" → 從閾值字典取值，無則用預設值

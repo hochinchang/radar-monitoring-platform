@@ -27,6 +27,7 @@ class TimeSeriesPoint(BaseModel):
 class InstrumentStatus(BaseModel):
     file_type: str
     equipment_name: str
+    department: str | None = None    # from SystemIPList.Department via IP
     latest_file_time: datetime | None
     diff_time_minutes: float | None  # non-negative or None
     max_diff_time_threshold: float   # ge=0

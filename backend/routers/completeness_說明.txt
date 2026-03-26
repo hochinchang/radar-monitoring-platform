@@ -1,0 +1,107 @@
+================================================================
+檔案：backend/routers/completeness.py
+功能：定義 /api/v1/completeness/* 的 REST API 端點（路由）。
+      屬於「薄路由層」：只負責輸入驗證與 HTTP 回應，業務邏輯委派給 services。
+================================================================
+
+--- 模組說明字串 (第 1-4 行) ---
+第 1-4 行：docstring，說明此為 completeness 路由器，為薄層設計。
+
+--- 匯入區塊 (第 6-16 行) ---
+第 6 行：`from __future__ import annotations`
+         啟用延遲型別評估。
+
+第 8 行：`import logging`
+         匯入日誌模組。
+
+第 9 行：`from datetime import datetime, timedelta, timezone`
+         datetime  → 日期時間物件
+         timedelta → 時間差計算（用於預設「24 小時前」的起始時間）
+         timezone  → 時區物件，此處使用 timezone.utc 確保時間為 UTC
+
+第 11 行：`from fastapi import APIRouter, HTTPException, Query`
+          APIRouter    → 路由群組物件，用來組織相關端點
+          HTTPException → 用於手動拋出 HTTP 錯誤回應
+          Query        → FastAPI 的 Query 參數裝飾器，用於定義 URL 查詢字串參數
+
+第 13 行：`from backend.models import CurrentStatusResponse, TimeSeriesResponse`
+          匯入此路由器使用的回應模型。
+
+第 14 行：`from backend.services.alert_service import get_all_instrument_statuses`
+          匯入 alert_service 的函式，取得所有儀器的即時狀態。
+
+第 15 行：`from backend.services.completeness_service import get_time_series`
+          匯入 completeness_service 的函式，取得時間序列資料。
+
+--- 路由器初始化 (第 17-18 行) ---
+第 17 行：`logger = logging.getLogger("routers.completeness")`
+          建立此路由模組的日誌紀錄器。
+
+第 18 行：`router = APIRouter(prefix="/api/v1/completeness", tags=["completeness"])`
+          建立 APIRouter 實例：
+            prefix="/api/v1/completeness" → 此路由器下所有路徑都會加上此前綴
+            tags=["completeness"]         → OpenAPI 文件（/docs）中的分類標籤
+
+--- GET /api/v1/completeness/current 端點 (第 21-40 行) ---
+第 21 行：`@router.get("/current", response_model=CurrentStatusResponse)`
+          裝飾器，將下方函式綁定為 GET /api/v1/completeness/current 端點。
+          response_model=CurrentStatusResponse → FastAPI 用此模型驗證並序列化回應 JSON。
+
+第 22 行：`def get_current_status() -> CurrentStatusResponse:`
+          端點處理函式，無路徑參數或查詢參數（直接取所有儀器的最新狀態）。
+
+第 24-26 行：函式說明：
+             - 查詢所有儀器的最新快照（radarFileCheck）
+             - 若無儀器資料（DB 錯誤）則回傳 503
+
+第 28 行：`instruments = get_all_instrument_statuses()`
+          呼叫 alert_service 取得所有儀器狀態列表。
+          若 DB 連線失敗，服務層會記錄錯誤並回傳空列表。
+
+第 30-33 行：`if not instruments: raise HTTPException(status_code=503, ...)`
+             若列表為空（無儀器或 DB 錯誤），拋出 503 Service Unavailable。
+             detail 為中文錯誤訊息，提示前端顯示適當的錯誤畫面。
+
+第 36-40 行：`return CurrentStatusResponse(...)`
+             正常情況下，組裝回應物件：
+               instruments  → 儀器狀態列表
+               calculated_at → 使用 datetime.now(timezone.utc) 取得目前 UTC 時間
+               status="ok"  → 表示查詢成功
+
+--- GET /api/v1/completeness/timeseries 端點 (第 43-65 行) ---
+第 43 行：`@router.get("/timeseries", response_model=TimeSeriesResponse)`
+          綁定 GET /api/v1/completeness/timeseries 端點。
+
+第 44-47 行：`def get_timeseries(start: datetime | None = Query(...), end: datetime | None = Query(...))`
+             函式簽名定義兩個可選的 URL 查詢參數：
+               start → ISO 8601 格式的起始時間（如 ?start=2024-01-15T00:00:00Z）
+               end   → ISO 8601 格式的結束時間
+             兩者均為可選（default=None），未提供時由函式內部給預設值。
+             Query(..., description="...") 為 OpenAPI 文件提供中文說明。
+
+第 49-50 行：函式說明：
+             - 回傳依小時聚合的完整率時間序列
+             - 未提供 start/end 時預設查詢最近 24 小時
+
+第 52 行：`now = datetime.now(timezone.utc)`
+          取得目前 UTC 時間，作為計算預設時間範圍的基準。
+
+第 53 行：`end_time = end or now`
+          若 end 未提供，使用目前時刻作為結束時間。
+
+第 54 行：`start_time = start or (end_time - timedelta(hours=24))`
+          若 start 未提供，使用結束時間減去 24 小時作為起始時間。
+          timedelta(hours=24) 產生 24 小時的時間差物件。
+
+第 56-57 行：`if start_time >= end_time: raise HTTPException(status_code=422, ...)`
+             驗證時間範圍的合理性：起始時間必須早於結束時間。
+             422 Unprocessable Entity 表示請求格式正確但邏輯無效。
+             錯誤訊息為中文，提示前端原因。
+
+第 59 行：`points = get_time_series(start_time, end_time)`
+          呼叫 completeness_service 取得時間序列資料點列表。
+          若 DB 錯誤，服務層回傳空列表（不拋出例外）。
+
+第 61-65 行：`return TimeSeriesResponse(data=points, start=start_time, end=end_time)`
+             組裝並回傳時間序列回應物件，
+             包含資料點列表與查詢時間範圍（方便前端繪圖時對齊 X 軸範圍）。

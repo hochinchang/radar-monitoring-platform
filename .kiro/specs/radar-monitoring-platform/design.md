@@ -153,17 +153,43 @@ Frontend 是操作人員直接面對的儀表板介面，以純 HTML/CSS/JavaScr
 
 - **api.js**：封裝所有對後端的 `fetch` 呼叫，統一處理 HTTP 錯誤、逾時與網路失敗，其他模組不直接發出 HTTP 請求。
 - **chart.js**：負責使用 Chart.js 繪製時間序列折線圖，標示異常資料點，不處理資料取得邏輯。
-- **dashboard.js**：主控制器，負責每秒更新本地時間與 UTC 時間、每 10 秒觸發自動刷新、顯示完整率數值與各儀器警示狀態區塊，並協調 api.js 與 chart.js。
+- **dashboard.js**：主控制器，負責每秒更新本地時間與 UTC 時間、每 10 秒觸發自動刷新、顯示各儀器警示狀態區塊（依科別分組），並協調 api.js。
+- **computers.js**：電腦即時狀況頁面控制器，顯示系統負載、記憶體與磁碟使用率（依科別分組）。
 
-靜態檔案（`index.html`、`css/`、`js/`）由 Nginx 或 FastAPI `StaticFiles` 提供服務，瀏覽器透過 REST API 與後端溝通，不直接存取資料庫。
+靜態檔案由 Nginx 或 FastAPI `StaticFiles` 提供服務，瀏覽器透過 REST API 與後端溝通，不直接存取資料庫。
+
+#### 頁面結構
+
+| 頁面 | 檔案 | 說明 |
+|------|------|------|
+| 首頁 | `index.html` | 導覽頁，提供三個入口：儀器即時狀況、電腦即時狀況、儀器閾值設定 |
+| 儀器即時狀況 | `instruments.html` | 顯示各儀器警示狀態，依 Department 分組，移除資料完整率趨勢圖 |
+| 電腦即時狀況 | `computers.html` | 顯示系統負載/記憶體與磁碟使用率（%），依 Department 分組 |
+| 儀器閾值設定 | `settings.html` | 獨立頁面，管理各儀器的 Max_DiffTime_Threshold |
+
+#### 分組規則
+
+儀器警示狀態、系統負載、磁碟使用率均依 `SystemIPList.Department` 欄位分組顯示：
+
+| Department | 顯示名稱 |
+|-----------|---------|
+| `sos`  | 衛星作業科 |
+| `dqcs` | 品管科 |
+| `rsa`  | 應用科 |
+| `wrs`  | 氣象雷達科 |
+| `mrs`  | 海象雷達科 |
+
+儀器警示狀態的分組：透過 `radarFileCheck.IP` → `SystemIPList.Department` 取得科別。
+電腦狀態的分組：透過 `CheckList.IP` → `SystemIPList.Department` 取得科別。
 
 | 元件 | 檔案 | 職責 |
 |------|------|------|
-| 時間顯示器 | dashboard.js | 每秒更新本地時間與 UTC 時間 |
-| 自動刷新控制器 | dashboard.js | 每 10 秒觸發資料更新，管理計時器 |
-| 完整率顯示 | dashboard.js | 顯示百分比數值 |
-| 儀器警示狀態顯示 | dashboard.js | 為每個 Instrument 各自顯示警示區塊與 DiffTime 數值 |
-| 時間序列圖 | chart.js | 使用 Chart.js 繪製折線圖，標示異常點 |
+| 時間顯示器 | clock.js | 每秒更新本地時間與 UTC 時間（所有頁面共用） |
+| 自動刷新控制器 | dashboard.js / computers.js | 每 10 秒觸發資料更新，管理計時器 |
+| 儀器警示狀態顯示 | dashboard.js | 依科別分組顯示各儀器警示區塊與 DiffTime |
+| 系統負載/記憶體顯示 | computers.js | 依科別分組顯示各電腦負載與記憶體使用率 |
+| 磁碟使用率顯示 | computers.js | 依科別分組顯示各電腦磁碟使用率（%） |
+| 儀器閾值設定 | settings.js | 獨立頁面，管理各儀器閾值 |
 | API 客戶端 | api.js | 封裝所有 fetch 呼叫，統一錯誤處理 |
 
 ---
@@ -328,6 +354,19 @@ CheckList (IP PK, ServerTime datetime, Load_1, Load_5, LOAD_15, MemoryUSE float)
 -- IP 對應設備名稱與部門
 SystemIPList (IP PK, EquipmentName, Department)
 ```
+
+> **Department 代碼對照表**
+>
+> | Department 值 | 中文名稱 |
+> |--------------|---------|
+> | `sos`  | 衛星作業科 |
+> | `dqcs` | 品管科 |
+> | `rsa`  | 應用科 |
+> | `wrs`  | 氣象雷達科 |
+> | `mrs`  | 海象雷達科 |
+>
+> 儀器警示狀態頁面與電腦即時狀況頁面均依此 Department 欄位分組顯示。
+> `FileTypeList.EquipmentName` 與 `SystemIPList.EquipmentName` 的值對應同一台電腦所收的儀器類型，可透過 IP 欄位跨資料庫關聯取得 Department。
 
 **DiskStatus 資料庫（磁碟狀態）**
 ```sql

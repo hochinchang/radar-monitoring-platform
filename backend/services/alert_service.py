@@ -26,11 +26,25 @@ _INSTRUMENT_STATUS_SQL = text("""
 SELECT
     ftl.FileType,
     ftl.EquipmentName,
+    rfc.IP,
     rfc.FileTime,
     TIMESTAMPDIFF(SECOND, FROM_UNIXTIME(rfc.FileTime), NOW()) / 60.0 AS diff_time_minutes
 FROM FileTypeList ftl
 LEFT JOIN radarFileCheck rfc ON ftl.FileType = rfc.FileType
 """)
+
+_SYSTEM_IP_DEPT_SQL = text("SELECT IP, Department FROM SystemIPList")
+
+
+def _load_ip_department_map() -> dict[str, str]:
+    """Load IP -> Department mapping from SystemStatus DB."""
+    try:
+        with get_session("system_status") as session:
+            rows = session.execute(_SYSTEM_IP_DEPT_SQL).fetchall()
+        return {row.IP: (row.Department or "") for row in rows}
+    except Exception as exc:
+        logger.warning("Failed to load IP->Department map: %s", exc)
+        return {}
 
 
 def _get_thresholds() -> dict[str, float]:
@@ -48,14 +62,10 @@ def _get_thresholds() -> dict[str, float]:
 
 
 def get_all_instrument_statuses() -> list[InstrumentStatus]:
-    """
-    Query radarFileCheck for all instruments and return their alert status.
-    diff_time_minutes = NOW() - FROM_UNIXTIME(FileTime), in minutes (non-negative).
-    is_alert = True when diff_time_minutes > threshold, or when FileTime is NULL.
-    """
     thresholds = _get_thresholds()
     default_threshold = get_config().system.default_max_diff_time_threshold
     timeout = get_config().system.query_timeout_seconds
+    ip_dept = _load_ip_department_map()
 
     try:
         with get_session("file_status") as session:
@@ -71,12 +81,13 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
     for row in rows:
         file_type: str = row.FileType
         threshold = thresholds.get(file_type, default_threshold)
+        department = ip_dept.get(row.IP or "", "") or None
 
         if row.FileTime is None or row.diff_time_minutes is None:
-            # Missing data — treat as alert
             statuses.append(InstrumentStatus(
                 file_type=file_type,
                 equipment_name=row.EquipmentName or "",
+                department=department,
                 latest_file_time=None,
                 diff_time_minutes=None,
                 max_diff_time_threshold=threshold,
@@ -90,6 +101,7 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
         statuses.append(InstrumentStatus(
             file_type=file_type,
             equipment_name=row.EquipmentName or "",
+            department=department,
             latest_file_time=latest_file_time,
             diff_time_minutes=diff,
             max_diff_time_threshold=threshold,
