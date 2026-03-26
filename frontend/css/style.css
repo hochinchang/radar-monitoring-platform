@@ -83,9 +83,32 @@ button:hover { background: #1d4ed8; }
 
 /* ── Instruments grid ── */
 .instruments-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.instrument-group {
+  border: 1px solid #2d3148;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.group-header {
+  background: #1e2235;
+  color: #7dd3fc;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  letter-spacing: 0.05em;
+}
+
+.group-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 12px;
 }
 
 .instrument-card {
