@@ -35,20 +35,37 @@ function _clearStatus() {
   document.getElementById('status-bar').className = 'status-bar hidden';
 }
 
+const DISCONNECT_THRESHOLD_MIN = 14400; // 10 天 = 斷線
+
 function _makeCard(inst) {
   const isAlert = inst.is_alert;
-  const diff = inst.diff_time_minutes != null
-    ? inst.diff_time_minutes.toFixed(1) + ' 分鐘' : 'N/A';
-  const triggeredAt = inst.latest_file_time
-    ? new Date(inst.latest_file_time).toLocaleString('zh-TW') : '--';
+  const diff = inst.diff_time_minutes;
+  const isDisconnected = diff == null || diff > DISCONNECT_THRESHOLD_MIN;
+
+  let diffDisplay, statusBadge;
+  if (isDisconnected) {
+    diffDisplay = '<span style="color:#ef4444;font-size:1.1rem;font-weight:700">斷線</span>';
+    statusBadge = '<span class="alert-label">⚠ 斷線</span>';
+  } else if (isAlert) {
+    diffDisplay = `<span class="diff-time alert-text">${diff.toFixed(1)} 分鐘</span>`;
+    statusBadge = '<span class="alert-label">⚠ 缺資料警示</span>';
+  } else {
+    diffDisplay = `<span class="diff-time">${diff.toFixed(1)} 分鐘</span>`;
+    statusBadge = '<span class="ok-label">✓ 正常</span>';
+  }
+
+  const triggeredAt = (!isDisconnected && inst.latest_file_time)
+    ? `<div class="triggered-at">最新資料：${new Date(inst.latest_file_time).toLocaleString('zh-TW')}</div>`
+    : '';
+
   return `
     <div class="instrument-card ${isAlert ? 'alert' : ''}">
+      <div class="card-meta">${inst.ip || '--'}</div>
       <div class="card-title">${inst.file_type}</div>
-      <div class="diff-time">${diff}</div>
-      ${isAlert
-        ? `<span class="alert-label">⚠ 缺資料警示</span>
-           <div class="triggered-at">最新資料：${triggeredAt}</div>`
-        : `<span class="ok-label">✓ 正常</span>`}
+      <div class="card-name">${inst.equipment_name || '--'}</div>
+      <div style="margin:6px 0">${diffDisplay}</div>
+      ${statusBadge}
+      ${triggeredAt}
     </div>`;
 }
 
