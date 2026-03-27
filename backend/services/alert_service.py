@@ -35,6 +35,8 @@ LEFT JOIN (
     UNION ALL
     SELECT IP, FileType, FileTime FROM HFradarFileCheck
     UNION ALL
+    SELECT IP, FileType, FileTime FROM satelliteFileCheck
+    UNION ALL
     SELECT IP, FileType, FileTime FROM windprofilerFileCheck
     UNION ALL
     SELECT IP, FileType, FileTime FROM DSFileCheck
