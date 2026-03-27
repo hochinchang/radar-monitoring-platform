@@ -87,6 +87,7 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
             statuses.append(InstrumentStatus(
                 file_type=file_type,
                 equipment_name=row.EquipmentName or "",
+                ip=row.IP or None,
                 department=department,
                 latest_file_time=None,
                 diff_time_minutes=None,
@@ -101,6 +102,7 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
         statuses.append(InstrumentStatus(
             file_type=file_type,
             equipment_name=row.EquipmentName or "",
+            ip=row.IP or None,
             department=department,
             latest_file_time=latest_file_time,
             diff_time_minutes=diff,

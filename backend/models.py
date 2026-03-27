@@ -27,6 +27,7 @@ class TimeSeriesPoint(BaseModel):
 class InstrumentStatus(BaseModel):
     file_type: str
     equipment_name: str
+    ip: Optional[str] = None
     department: Optional[str] = None
     latest_file_time: Optional[datetime] = None
     diff_time_minutes: Optional[float] = None
