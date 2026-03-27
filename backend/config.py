@@ -5,6 +5,7 @@ Loads all settings from config/config.yaml using PyYAML.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
@@ -13,6 +14,8 @@ import yaml
 
 # Resolve config path: backend/ -> project root -> config/config.yaml
 _CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.yaml"
+
+logger = logging.getLogger("config")
 
 
 @dataclass
@@ -101,14 +104,17 @@ def _load_config(path: Path = _CONFIG_PATH) -> AppConfig:
 
     # Instruments (optional entries, but section must exist)
     instruments_raw = _require(raw, "instruments", "root")
-    instruments: Dict[str, InstrumentConfig] = {
-        key: InstrumentConfig(
+    instruments: Dict[str, InstrumentConfig] = {}
+    for key, val in instruments_raw.items():
+        if val is None:
+            logger.warning("instruments.%s has no value, using default threshold", key)
+            val = {}
+        instruments[key] = InstrumentConfig(
             max_diff_time_threshold=float(
-                _require(val, "max_diff_time_threshold", f"instruments.{key}")
+                val.get("max_diff_time_threshold",
+                        raw.get("system", {}).get("default_max_diff_time_threshold", 30.0))
             )
         )
-        for key, val in instruments_raw.items()
-    }
 
     return AppConfig(databases=databases, system=system, instruments=instruments)
 
