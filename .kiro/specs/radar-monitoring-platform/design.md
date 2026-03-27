@@ -331,17 +331,38 @@ Frontend 是操作人員直接面對的儀表板介面，以純 HTML/CSS/JavaScr
 
 **FileStatus 資料庫（雷達資料）**
 ```sql
--- 雷達檔案接收歷史記錄（主要查詢來源）
-radarStatus (ID, IP, FileName, FileType, FileTime float, DiffTime float)
+-- 各儀器類型的即時快照資料表（最新一筆狀態）
+radarFileCheck        (IP, FileName, FileType, FileTime float, DiffTime float)
+HFradarFileCheck      (IP, FileName, FileType, FileTime float, DiffTime float)
+satelliteFileCheck    (IP, FileName, FileType, FileTime float, DiffTime float)
+windprofilerFileCheck (IP, FileName, FileType, FileTime float, DiffTime float)
+DSFileCheck           (IP, FileName, FileType, FileTime float, DiffTime float)
+-- DS 前綴代表東沙島資料，FileType 以 DS_ 開頭
+
+-- 各儀器類型的歷史記錄資料表
+radarStatus        (ID, IP, FileName, FileType, FileTime float, DiffTime float)
+HFradarStatus      (ID, IP, FileName, FileType, FileTime float, DiffTime float)
+satelliteStatus    (ID, IP, FileName, FileType, FileTime float, DiffTime float)
+windprofilerStatus (ID, IP, FileName, FileType, FileTime float, DiffTime float)
+DSStatus           (ID, IP, FileName, FileType, FileTime float, DiffTime float)
 -- FileTime: Unix timestamp（秒），表示資料時間
 -- DiffTime: 檔案延遲時間（秒）
-
--- 最新一筆雷達檔案狀態（即時快照）
-radarFileCheck (IP, FileName, FileType, FileTime float, DiffTime float)
 
 -- 檔案類型對應設備名稱
 FileTypeList (ID, FileType, EquipmentName)
 ```
+
+> **資料表命名規則**
+>
+> | 前綴 | 儀器類型 | 備註 |
+> |------|---------|------|
+> | `radar` | 氣象雷達 | FileType 以 RC 開頭 |
+> | `HFradar` | 海象雷達（HF Radar） | |
+> | `satellite` | 衛星 | |
+> | `windprofiler` | 風廓線儀（Wind Profiler） | |
+> | `DS` | 東沙島儀器 | FileType 以 `DS_` 開頭 |
+>
+> 儀器警示狀態目前查詢 `radarFileCheck`，其他儀器類型的 FileCheck 資料表結構相同，可依需求擴充。
 
 **SystemStatus 資料庫（電腦系統狀態）**
 ```sql

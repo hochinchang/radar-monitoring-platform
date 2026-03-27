@@ -26,11 +26,21 @@ _INSTRUMENT_STATUS_SQL = text("""
 SELECT
     ftl.FileType,
     ftl.EquipmentName,
-    rfc.IP,
-    rfc.FileTime,
-    TIMESTAMPDIFF(SECOND, FROM_UNIXTIME(rfc.FileTime), NOW()) / 60.0 AS diff_time_minutes
+    fc.IP,
+    fc.FileTime,
+    TIMESTAMPDIFF(SECOND, FROM_UNIXTIME(fc.FileTime), NOW()) / 60.0 AS diff_time_minutes
 FROM FileTypeList ftl
-LEFT JOIN radarFileCheck rfc ON ftl.FileType = rfc.FileType
+LEFT JOIN (
+    SELECT IP, FileType, FileTime FROM radarFileCheck
+    UNION ALL
+    SELECT IP, FileType, FileTime FROM HFradarFileCheck
+    UNION ALL
+    SELECT IP, FileType, FileTime FROM satelliteFileCheck
+    UNION ALL
+    SELECT IP, FileType, FileTime FROM windprofilerFileCheck
+    UNION ALL
+    SELECT IP, FileType, FileTime FROM DSFileCheck
+) fc ON ftl.FileType = fc.FileType
 """)
 
 _SYSTEM_IP_DEPT_SQL = text("SELECT IP, Department FROM SystemIPList")
