@@ -5,7 +5,7 @@ Pydantic data models for radar-monitoring-platform.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,10 +27,10 @@ class TimeSeriesPoint(BaseModel):
 class InstrumentStatus(BaseModel):
     file_type: str
     equipment_name: str
-    department: str | None = None    # from SystemIPList.Department via IP
-    latest_file_time: datetime | None
-    diff_time_minutes: float | None  # non-negative or None
-    max_diff_time_threshold: float   # ge=0
+    department: Optional[str] = None
+    latest_file_time: Optional[datetime] = None
+    diff_time_minutes: Optional[float] = None
+    max_diff_time_threshold: float
     is_alert: bool
 
 
