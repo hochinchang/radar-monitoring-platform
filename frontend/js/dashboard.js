@@ -54,7 +54,7 @@ function _makeCard(inst) {
     statusBadge = '<span class="ok-label">✓ 正常</span>';
   }
 
-  const triggeredAt = (!isDisconnected && inst.latest_file_time)
+  const triggeredAt = (!isDisconnected && isAlert && inst.latest_file_time)
     ? `<div class="triggered-at">最新資料：${new Date(inst.latest_file_time).toLocaleString('zh-TW')}</div>`
     : '';
 
