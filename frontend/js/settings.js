@@ -17,18 +17,16 @@ function _tickClock() {
 function _renderThresholdTable(instruments) {
   const tbody = document.getElementById('threshold-tbody');
   if (!instruments || instruments.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="color:#64748b">無儀器資料</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#64748b">無儀器資料</td></tr>';
     return;
   }
   tbody.innerHTML = instruments.map(inst => `
     <tr data-file-type="${inst.file_type}">
       <td>${inst.file_type}</td>
       <td>${inst.equipment_name || '--'}</td>
-      <td>
-        <input type="number" min="0" step="1"
-               value="${inst.max_diff_time_threshold}"
-               data-original="${inst.max_diff_time_threshold}" />
-      </td>
+      <td><input type="number" min="0" step="1" value="${inst.threshold_yellow}" class="th-yellow" /></td>
+      <td><input type="number" min="0" step="1" value="${inst.threshold_orange}" class="th-orange" /></td>
+      <td><input type="number" min="0" step="1" value="${inst.threshold_red}"    class="th-red"    /></td>
       <td>
         <button class="btn-save" onclick="saveThreshold('${inst.file_type}', this)">儲存</button>
         <span class="save-msg"></span>
@@ -39,15 +37,13 @@ function _renderThresholdTable(instruments) {
 
 async function saveThreshold(fileType, btn) {
   const row = btn.closest('tr');
-  const input = row.querySelector('input[type="number"]');
   const msgEl = row.querySelector('.save-msg');
-  const val = parseFloat(input.value);
+  const yellow = parseFloat(row.querySelector('.th-yellow').value);
+  const orange = parseFloat(row.querySelector('.th-orange').value);
+  const red    = parseFloat(row.querySelector('.th-red').value);
 
-  input.classList.remove('input-error');
   msgEl.textContent = '';
-
-  if (isNaN(val) || val < 0) {
-    input.classList.add('input-error');
+  if ([yellow, orange, red].some(v => isNaN(v) || v < 0)) {
     msgEl.textContent = '閾值不得為負數';
     msgEl.className = 'save-msg err';
     return;
@@ -55,8 +51,7 @@ async function saveThreshold(fileType, btn) {
 
   btn.disabled = true;
   try {
-    await updateThreshold(fileType, val);
-    input.dataset.original = val;
+    await updateThreshold(fileType, { threshold_yellow: yellow, threshold_orange: orange, threshold_red: red });
     msgEl.textContent = '已儲存';
     msgEl.className = 'save-msg ok';
     setTimeout(() => { msgEl.textContent = ''; }, 2000);
@@ -76,7 +71,7 @@ async function _init() {
     _renderThresholdTable(data.instruments);
   } catch (_) {
     document.getElementById('threshold-tbody').innerHTML =
-      '<tr><td colspan="4" style="color:#f87171">載入失敗</td></tr>';
+      '<tr><td colspan="6" style="color:#f87171">載入失敗</td></tr>';
   }
 }
 

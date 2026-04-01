@@ -34,12 +34,16 @@ class SystemConfig:
     query_timeout_seconds: int
     reconnect_interval_seconds: int
     max_reconnect_attempts: int
-    default_max_diff_time_threshold: float
+    default_threshold_yellow: float
+    default_threshold_orange: float
+    default_threshold_red: float
 
 
 @dataclass
 class InstrumentConfig:
-    max_diff_time_threshold: float
+    threshold_yellow: float
+    threshold_orange: float
+    threshold_red: float
 
 
 @dataclass
@@ -74,9 +78,9 @@ def _parse_system(data: dict) -> SystemConfig:
         query_timeout_seconds=int(_require(data, "query_timeout_seconds", ctx)),
         reconnect_interval_seconds=int(_require(data, "reconnect_interval_seconds", ctx)),
         max_reconnect_attempts=int(_require(data, "max_reconnect_attempts", ctx)),
-        default_max_diff_time_threshold=float(
-            _require(data, "default_max_diff_time_threshold", ctx)
-        ),
+        default_threshold_yellow=float(data.get("default_threshold_yellow", 10.0)),
+        default_threshold_orange=float(data.get("default_threshold_orange", 15.0)),
+        default_threshold_red=float(data.get("default_threshold_red", 20.0)),
     )
 
 
@@ -104,16 +108,16 @@ def _load_config(path: Path = _CONFIG_PATH) -> AppConfig:
 
     # Instruments (optional entries, but section must exist)
     instruments_raw = _require(raw, "instruments", "root")
+    sys_cfg = raw.get("system", {})
     instruments: Dict[str, InstrumentConfig] = {}
     for key, val in instruments_raw.items():
         if val is None:
-            logger.warning("instruments.%s has no value, using default threshold", key)
+            logger.warning("instruments.%s has no value, using defaults", key)
             val = {}
         instruments[key] = InstrumentConfig(
-            max_diff_time_threshold=float(
-                val.get("max_diff_time_threshold",
-                        raw.get("system", {}).get("default_max_diff_time_threshold", 30.0))
-            )
+            threshold_yellow=float(val.get("threshold_yellow", sys_cfg.get("default_threshold_yellow", 10.0))),
+            threshold_orange=float(val.get("threshold_orange", sys_cfg.get("default_threshold_orange", 15.0))),
+            threshold_red=float(val.get("threshold_red",    sys_cfg.get("default_threshold_red",    20.0))),
         )
 
     return AppConfig(databases=databases, system=system, instruments=instruments)

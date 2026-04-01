@@ -1,0 +1,41 @@
+databases:
+  file_status:
+    host: "localhost"
+    port: 3306
+    name: "FileStatus"
+    user: "monitor_user"
+    password: "secret"
+    pool_size: 5
+  system_status:
+    host: "localhost"
+    port: 3306
+    name: "SystemStatus"
+    user: "monitor_user"
+    password: "secret"
+    pool_size: 3
+  disk_status:
+    host: "localhost"
+    port: 3306
+    name: "DiskStatus"
+    user: "monitor_user"
+    password: "secret"
+    pool_size: 3
+
+system:
+  radar_interval_minutes: 10
+  query_timeout_seconds: 5
+  reconnect_interval_seconds: 10
+  max_reconnect_attempts: 3
+  default_threshold_yellow: 10.0
+  default_threshold_orange: 15.0
+  default_threshold_red: 20.0
+
+instruments:
+  RADAR_A:
+    threshold_yellow: 10.0
+    threshold_orange: 15.0
+    threshold_red: 20.0
+  RADAR_B:
+    threshold_yellow: 10.0
+    threshold_orange: 15.0
+    threshold_red: 20.0

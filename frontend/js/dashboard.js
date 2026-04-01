@@ -36,21 +36,21 @@ function _clearStatus() {
 }
 
 const DISCONNECT_THRESHOLD_MIN = 14400;
-const ALERT_RED    = 20;
-const ALERT_ORANGE = 15;
-const ALERT_YELLOW = 10;
 
-function _alertClass(diff) {
+function _alertClass(diff, inst) {
   if (diff == null || diff > DISCONNECT_THRESHOLD_MIN) return 'disconnected';
-  if (diff > ALERT_RED)    return 'alert-red';
-  if (diff > ALERT_ORANGE) return 'alert-orange';
-  if (diff > ALERT_YELLOW) return 'alert-yellow';
+  const red    = inst.threshold_red    ?? 20;
+  const orange = inst.threshold_orange ?? 15;
+  const yellow = inst.threshold_yellow ?? 10;
+  if (diff > red)    return 'alert-red';
+  if (diff > orange) return 'alert-orange';
+  if (diff > yellow) return 'alert-yellow';
   return 'ok';
 }
 
 function _makeCard(inst) {
   const diff = inst.diff_time_minutes;
-  const level = _alertClass(diff);
+  const level = _alertClass(diff, inst);
   const isDisconnected = level === 'disconnected';
   const isAlert = level !== 'ok' && !isDisconnected;
 
@@ -98,10 +98,7 @@ function _renderInstruments(instruments) {
     groups[key].push(inst);
   }
 
-  const orderedKeys = [
-    ...DEPT_ORDER.filter(k => groups[k]),
-    ...Object.keys(groups).filter(k => !DEPT_ORDER.includes(k)),
-  ];
+  const orderedKeys = DEPT_ORDER.filter(k => groups[k]);
 
   container.innerHTML = orderedKeys.map(key => {
     const label = DEPT_LABELS[key] || key;
