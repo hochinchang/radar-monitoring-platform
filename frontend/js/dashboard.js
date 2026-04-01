@@ -35,23 +35,37 @@ function _clearStatus() {
   document.getElementById('status-bar').className = 'status-bar hidden';
 }
 
-const DISCONNECT_THRESHOLD_MIN = 14400; // 10 天 = 斷線
+const DISCONNECT_THRESHOLD_MIN = 14400;
+const ALERT_RED    = 20;
+const ALERT_ORANGE = 15;
+const ALERT_YELLOW = 10;
+
+function _alertClass(diff) {
+  if (diff == null || diff > DISCONNECT_THRESHOLD_MIN) return 'disconnected';
+  if (diff > ALERT_RED)    return 'alert-red';
+  if (diff > ALERT_ORANGE) return 'alert-orange';
+  if (diff > ALERT_YELLOW) return 'alert-yellow';
+  return 'ok';
+}
 
 function _makeCard(inst) {
-  const isAlert = inst.is_alert;
   const diff = inst.diff_time_minutes;
-  const isDisconnected = diff == null || diff > DISCONNECT_THRESHOLD_MIN;
+  const level = _alertClass(diff);
+  const isDisconnected = level === 'disconnected';
+  const isAlert = level !== 'ok' && !isDisconnected;
 
   let diffDisplay, statusBadge;
   if (isDisconnected) {
-    diffDisplay = '<span style="color:#ef4444;font-size:1.1rem;font-weight:700">斷線</span>';
-    statusBadge = '<span class="alert-label">⚠ 斷線</span>';
-  } else if (isAlert) {
-    diffDisplay = `<span class="diff-time alert-text">${diff.toFixed(1)} 分鐘</span>`;
-    statusBadge = '<span class="alert-label">⚠ 缺資料警示</span>';
+    diffDisplay = '<span class="diff-disconnected">斷線</span>';
+    statusBadge = '<span class="badge-disconnected">⚠ 斷線</span>';
   } else {
-    diffDisplay = `<span class="diff-time">${diff.toFixed(1)} 分鐘</span>`;
-    statusBadge = '<span class="ok-label">✓ 正常</span>';
+    const diffText = diff != null ? diff.toFixed(1) + ' 分鐘' : 'N/A';
+    diffDisplay = `<span class="diff-time diff-${level}">${diffText}</span>`;
+    if (isAlert) {
+      statusBadge = `<span class="badge-${level}">⚠ 缺資料警示</span>`;
+    } else {
+      statusBadge = '<span class="ok-label">✓ 正常</span>';
+    }
   }
 
   const triggeredAt = (!isDisconnected && isAlert && inst.latest_file_time)
@@ -59,7 +73,7 @@ function _makeCard(inst) {
     : '';
 
   return `
-    <div class="instrument-card ${isAlert ? 'alert' : ''}">
+    <div class="instrument-card level-${level}">
       <div class="card-meta">${inst.ip || '--'}</div>
       <div class="card-title">${inst.file_type}</div>
       <div class="card-name">${inst.equipment_name || '--'}</div>
