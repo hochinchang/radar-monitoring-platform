@@ -66,13 +66,13 @@ async function fetchInstruments() {
 /**
  * 更新儀器閾值
  * @param {string} fileType
- * @param {number} threshold
+ * @param {{ threshold_yellow: number, threshold_orange: number, threshold_red: number }} thresholds
  */
-async function updateThreshold(fileType, threshold) {
+async function updateThreshold(fileType, thresholds) {
   return apiFetch(`/instruments/${encodeURIComponent(fileType)}/threshold`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ max_diff_time_threshold: threshold }),
+    body: JSON.stringify(thresholds),
   });
 }
 

@@ -26,10 +26,16 @@ system:
   query_timeout_seconds: 5
   reconnect_interval_seconds: 10
   max_reconnect_attempts: 3
-  default_max_diff_time_threshold: 30.0
+  default_threshold_yellow: 10.0
+  default_threshold_orange: 15.0
+  default_threshold_red: 20.0
 
 instruments:
   RADAR_A:
-    max_diff_time_threshold: 30.0
+    threshold_yellow: 10.0
+    threshold_orange: 15.0
+    threshold_red: 20.0
   RADAR_B:
-    max_diff_time_threshold: 30.0
+    threshold_yellow: 10.0
+    threshold_orange: 15.0
+    threshold_red: 20.0
