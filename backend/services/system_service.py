@@ -19,10 +19,8 @@ LEFT JOIN SystemIPList sl ON cl.IP = sl.IP
 """)
 
 _DISK_SQL = text("""
-SELECT cl.IP, cl.FileSystem, cl.Used,
-       sl.EquipmentName, sl.Department
-FROM CheckList cl
-LEFT JOIN SystemIPList sl ON cl.IP = sl.IP
+SELECT IP, FileSystem, Used
+FROM CheckList
 """)
 
 
