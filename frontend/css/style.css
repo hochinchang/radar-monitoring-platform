@@ -147,9 +147,24 @@ button:hover { background: #1d4ed8; }
   font-variant-numeric: tabular-nums;
 }
 
-.instrument-card.alert .diff-time { color: #ef4444; }
-.instrument-card:not(.alert) .diff-time { color: #4ade80; }
-.alert-text { color: #ef4444; }
+/* ── Instrument card levels ── */
+.instrument-card.level-ok           { border-color: #2d3148; background: #0f1117; }
+.instrument-card.level-alert-yellow { border-color: #ca8a04; background: #1c1500; }
+.instrument-card.level-alert-orange { border-color: #ea580c; background: #1c0a00; }
+.instrument-card.level-alert-red    { border-color: #ef4444; background: #1c0a0a; }
+.instrument-card.level-disconnected { border-color: #6b7280; background: #111318; }
+
+.diff-time { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.diff-ok           { color: #4ade80; }
+.diff-alert-yellow { color: #facc15; }
+.diff-alert-orange { color: #fb923c; }
+.diff-alert-red    { color: #ef4444; }
+.diff-disconnected { color: #9ca3af; font-size: 1.2rem; font-weight: 700; }
+
+.badge-alert-yellow { display:inline-block; margin-top:6px; background:#854d0e; color:#fef08a; font-size:0.72rem; padding:2px 8px; border-radius:4px; }
+.badge-alert-orange { display:inline-block; margin-top:6px; background:#9a3412; color:#fed7aa; font-size:0.72rem; padding:2px 8px; border-radius:4px; }
+.badge-alert-red    { display:inline-block; margin-top:6px; background:#7f1d1d; color:#fca5a5; font-size:0.72rem; padding:2px 8px; border-radius:4px; }
+.badge-disconnected { display:inline-block; margin-top:6px; background:#374151; color:#d1d5db; font-size:0.72rem; padding:2px 8px; border-radius:4px; }
 
 .instrument-card .alert-label {
   display: inline-block;
