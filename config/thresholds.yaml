@@ -1,0 +1,10 @@
+# 各儀器警示閾值設定（分鐘）
+# 修改後重啟服務或透過網頁設定介面更新
+# 若儀器不在此清單中，使用 config.yaml 的預設值
+
+defaults:
+  threshold_yellow: 10.0
+  threshold_orange: 15.0
+  threshold_red: 20.0
+
+instruments: {}
