@@ -2,7 +2,7 @@
 
 ## 概覽
 
-雷達監控整合平台是一套前後端分離的網頁應用系統，部署於 Linux Rocky 9 環境。後端以 Python（FastAPI）提供 REST API，前端以純 HTML/CSS/JavaScript 實作 Dashboard，資料來源為 MySQL 資料庫。系統核心功能為即時顯示雷達資料完整率、時間序列趨勢圖，以及在資料異常時主動發出視覺警示。
+雷達監控整合平台是一套前後端分離的網頁應用系統，部署於 Linux Rocky 9 環境。後端以 Python（FastAPI）提供 REST API，前端以純 HTML/CSS/JavaScript 實作 Dashboard，資料來源為 MySQL 資料庫。系統核心功能為即時顯示雷達資料完整率、各儀器資料時間差（以顏色區分嚴重程度），以及電腦系統狀態。資料異常的主動推播通知由外部系統負責，本平台僅負責視覺化呈現。
 
 ---
 
