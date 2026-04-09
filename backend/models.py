@@ -5,26 +5,12 @@ Pydantic data models for radar-monitoring-platform.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
-# --- Core domain models ---
-
-class CompletenessResult(BaseModel):
-    completeness_rate: float  # 0.0 ~ 100.0
-    calculated_at: datetime
-    status: Literal["ok", "no_data", "db_error"]
-
-
-class TimeSeriesPoint(BaseModel):
-    timestamp: datetime
-    completeness_rate: float
-    is_alert: bool
-
-
-class InstrumentStatus(BaseModel):
+# --- Core domain models ---class InstrumentStatus(BaseModel):
     file_type: str
     equipment_name: str
     ip: Optional[str] = None
@@ -49,12 +35,6 @@ class CurrentStatusResponse(BaseModel):
     instruments: list[InstrumentStatus]
     calculated_at: datetime
     status: str
-
-
-class TimeSeriesResponse(BaseModel):
-    data: list[TimeSeriesPoint]
-    start: datetime
-    end: datetime
 
 
 class InstrumentListItem(BaseModel):

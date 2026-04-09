@@ -47,17 +47,6 @@ async function fetchCurrentStatus() {
   return apiFetch('/completeness/current');
 }
 
-/**
- * 取得時間序列資料
- * @param {Date} start
- * @param {Date} end
- */
-async function fetchTimeSeries(start, end) {
-  const s = start.toISOString();
-  const e = end.toISOString();
-  return apiFetch(`/completeness/timeseries?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`);
-}
-
 /** 取得所有儀器清單與閾值 */
 async function fetchInstruments() {
   return apiFetch('/instruments');
