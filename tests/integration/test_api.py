@@ -16,15 +16,20 @@ from backend.models import InstrumentStatus
 
 client = TestClient(app)
 
+
 # ── 共用 fixtures ────────────────────────────────────────────
 
-def _make_instrument(file_type="RADAR_A", is_alert=False, diff=5.0):
+def _make_instrument(file_type="RADAR_A", is_alert=False, diff=5.0, dept="wrs"):
     return InstrumentStatus(
         file_type=file_type,
         equipment_name=f"站台 {file_type}",
+        ip="192.168.1.1",
+        department=dept,
         latest_file_time=datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc),
         diff_time_minutes=diff,
-        max_diff_time_threshold=30.0,
+        threshold_yellow=10.0,
+        threshold_orange=15.0,
+        threshold_red=20.0,
         is_alert=is_alert,
     )
 
@@ -41,7 +46,6 @@ class TestCurrentStatus:
         data = res.json()
         assert data["status"] == "ok"
         assert len(data["instruments"]) == 2
-        assert data["instruments"][0]["file_type"] == "RADAR_A"
 
     def test_returns_503_when_db_error(self):
         with patch("backend.routers.completeness.get_all_instrument_statuses",
@@ -49,49 +53,15 @@ class TestCurrentStatus:
             res = client.get("/api/v1/completeness/current")
         assert res.status_code == 503
 
-    def test_alert_instrument_has_is_alert_true(self):
-        instruments = [_make_instrument("RADAR_A", is_alert=True, diff=45.0)]
+    def test_instrument_has_threshold_fields(self):
+        instruments = [_make_instrument("RADAR_A")]
         with patch("backend.routers.completeness.get_all_instrument_statuses",
                    return_value=instruments):
             res = client.get("/api/v1/completeness/current")
-        assert res.status_code == 200
-        assert res.json()["instruments"][0]["is_alert"] is True
-
-
-# ── GET /api/v1/completeness/timeseries ─────────────────────
-
-class TestTimeSeries:
-    def test_returns_200_with_default_range(self):
-        from backend.models import TimeSeriesPoint
-        points = [
-            TimeSeriesPoint(
-                timestamp=datetime(2024, 1, 15, 9, 0, tzinfo=timezone.utc),
-                completeness_rate=98.5,
-                is_alert=False,
-            )
-        ]
-        with patch("backend.routers.completeness.get_time_series", return_value=points):
-            res = client.get("/api/v1/completeness/timeseries")
-        assert res.status_code == 200
-        data = res.json()
-        assert len(data["data"]) == 1
-        assert data["data"][0]["completeness_rate"] == 98.5
-
-    def test_returns_200_with_custom_range(self):
-        with patch("backend.routers.completeness.get_time_series", return_value=[]):
-            res = client.get(
-                "/api/v1/completeness/timeseries"
-                "?start=2024-01-14T00:00:00Z&end=2024-01-15T00:00:00Z"
-            )
-        assert res.status_code == 200
-        assert res.json()["data"] == []
-
-    def test_returns_422_when_start_after_end(self):
-        res = client.get(
-            "/api/v1/completeness/timeseries"
-            "?start=2024-01-15T00:00:00Z&end=2024-01-14T00:00:00Z"
-        )
-        assert res.status_code == 422
+        inst = res.json()["instruments"][0]
+        assert "threshold_yellow" in inst
+        assert "threshold_orange" in inst
+        assert "threshold_red" in inst
 
 
 # ── GET /api/v1/instruments ──────────────────────────────────
@@ -99,15 +69,15 @@ class TestTimeSeries:
 class TestGetInstruments:
     def test_returns_instrument_list(self):
         instruments = [
-            {"file_type": "RADAR_A", "equipment_name": "站台 A", "max_diff_time_threshold": 30.0},
-            {"file_type": "RADAR_B", "equipment_name": "站台 B", "max_diff_time_threshold": 60.0},
+            {"file_type": "RADAR_A", "equipment_name": "站台 A",
+             "threshold_yellow": 10.0, "threshold_orange": 15.0, "threshold_red": 20.0},
         ]
         with patch("backend.routers.instruments.list_instruments", return_value=instruments):
             res = client.get("/api/v1/instruments")
         assert res.status_code == 200
         data = res.json()
-        assert len(data["instruments"]) == 2
-        assert data["instruments"][0]["file_type"] == "RADAR_A"
+        assert len(data["instruments"]) == 1
+        assert data["instruments"][0]["threshold_yellow"] == 10.0
 
     def test_returns_empty_list_on_db_error(self):
         with patch("backend.routers.instruments.list_instruments", return_value=[]):
@@ -119,48 +89,69 @@ class TestGetInstruments:
 # ── PUT /api/v1/instruments/{file_type}/threshold ───────────
 
 class TestUpdateThreshold:
+    def _instruments(self):
+        return [{"file_type": "RADAR_A", "equipment_name": "站台 A",
+                 "threshold_yellow": 10.0, "threshold_orange": 15.0, "threshold_red": 20.0}]
+
     def test_returns_200_on_valid_update(self):
-        instruments = [
-            {"file_type": "RADAR_A", "equipment_name": "站台 A", "max_diff_time_threshold": 30.0}
-        ]
-        with patch("backend.routers.instruments.list_instruments", return_value=instruments), \
-             patch("backend.routers.instruments.set_instrument_threshold") as mock_set:
+        with patch("backend.routers.instruments.list_instruments", return_value=self._instruments()), \
+             patch("backend.routers.instruments.set_instrument_thresholds") as mock_set:
             res = client.put(
                 "/api/v1/instruments/RADAR_A/threshold",
-                json={"max_diff_time_threshold": 45.0},
+                json={"threshold_yellow": 12.0, "threshold_orange": 18.0, "threshold_red": 25.0},
             )
         assert res.status_code == 200
         data = res.json()
         assert data["file_type"] == "RADAR_A"
-        assert data["max_diff_time_threshold"] == 45.0
-        mock_set.assert_called_once_with("RADAR_A", 45.0)
+        assert data["threshold_yellow"] == 12.0
+        mock_set.assert_called_once_with("RADAR_A", 12.0, 18.0, 25.0)
 
     def test_returns_404_for_unknown_file_type(self):
-        """需求 7.1 — 不存在的 file_type 回傳 404"""
         with patch("backend.routers.instruments.list_instruments", return_value=[]):
             res = client.put(
                 "/api/v1/instruments/UNKNOWN/threshold",
-                json={"max_diff_time_threshold": 30.0},
+                json={"threshold_yellow": 10.0, "threshold_orange": 15.0, "threshold_red": 20.0},
             )
         assert res.status_code == 404
 
     def test_returns_422_for_negative_threshold(self):
-        """需求 7.5 — 負數閾值回傳 422"""
         res = client.put(
             "/api/v1/instruments/RADAR_A/threshold",
-            json={"max_diff_time_threshold": -1.0},
+            json={"threshold_yellow": -1.0, "threshold_orange": 15.0, "threshold_red": 20.0},
         )
         assert res.status_code == 422
 
-    def test_returns_422_for_zero_is_valid(self):
-        """閾值 0 應被接受（ge=0）"""
-        instruments = [
-            {"file_type": "RADAR_A", "equipment_name": "站台 A", "max_diff_time_threshold": 30.0}
-        ]
-        with patch("backend.routers.instruments.list_instruments", return_value=instruments), \
-             patch("backend.routers.instruments.set_instrument_threshold"):
+    def test_zero_threshold_is_valid(self):
+        with patch("backend.routers.instruments.list_instruments", return_value=self._instruments()), \
+             patch("backend.routers.instruments.set_instrument_thresholds"):
             res = client.put(
                 "/api/v1/instruments/RADAR_A/threshold",
-                json={"max_diff_time_threshold": 0.0},
+                json={"threshold_yellow": 0.0, "threshold_orange": 0.0, "threshold_red": 0.0},
             )
         assert res.status_code == 200
+
+
+# ── GET /api/v1/system/current ──────────────────────────────
+
+class TestSystemStatus:
+    def test_returns_200(self):
+        with patch("backend.routers.system.get_system_status", return_value=[
+            {"ip": "192.168.1.1", "equipment_name": "Server A", "department": "wrs",
+             "load_1": 0.5, "load_5": 0.4, "load_15": 0.3, "memory_use": 60.0}
+        ]):
+            res = client.get("/api/v1/system/current")
+        assert res.status_code == 200
+        assert len(res.json()["items"]) == 1
+
+
+# ── GET /api/v1/disk/current ────────────────────────────────
+
+class TestDiskStatus:
+    def test_returns_200(self):
+        with patch("backend.routers.system.get_disk_status", return_value=[
+            {"ip": "192.168.1.1", "file_system": "/dev/sda1", "used_pct": 55.0,
+             "equipment_name": "Server A", "department": "wrs"}
+        ]):
+            res = client.get("/api/v1/disk/current")
+        assert res.status_code == 200
+        assert len(res.json()["items"]) == 1

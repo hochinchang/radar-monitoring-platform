@@ -10,16 +10,16 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# --- Core domain models ---class InstrumentStatus(BaseModel):
+class InstrumentStatus(BaseModel):
     file_type: str
     equipment_name: str
     ip: Optional[str] = None
     department: Optional[str] = None
     latest_file_time: Optional[datetime] = None
     diff_time_minutes: Optional[float] = None
-    threshold_yellow: float  # 黃色警示閾值（分鐘）
-    threshold_orange: float  # 橙色警示閾值（分鐘）
-    threshold_red: float     # 紅色警示閾值（分鐘）
+    threshold_yellow: float
+    threshold_orange: float
+    threshold_red: float
     is_alert: bool
 
 
@@ -28,8 +28,6 @@ class InstrumentThresholdSetting(BaseModel):
     threshold_orange: float = Field(ge=0.0)
     threshold_red: float = Field(ge=0.0)
 
-
-# --- API response wrappers ---
 
 class CurrentStatusResponse(BaseModel):
     instruments: list[InstrumentStatus]
