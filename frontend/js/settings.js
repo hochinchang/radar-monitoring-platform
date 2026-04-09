@@ -28,7 +28,7 @@ function _renderThresholdTable(instruments) {
       <td><input type="number" min="0" step="1" value="${inst.threshold_orange}" class="th-orange" /></td>
       <td><input type="number" min="0" step="1" value="${inst.threshold_red}"    class="th-red"    /></td>
       <td>
-        <button class="btn-save" onclick="saveThreshold('${inst.file_type}', this)">儲存</button>
+        <button type="button" class="btn-save" onclick="saveThreshold('${inst.file_type}', this)">儲存</button>
         <span class="save-msg"></span>
       </td>
     </tr>
