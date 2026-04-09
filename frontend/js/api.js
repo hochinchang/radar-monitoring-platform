@@ -59,7 +59,7 @@ async function fetchInstruments() {
  */
 async function updateThreshold(fileType, thresholds) {
   return apiFetch(`/instruments/${encodeURIComponent(fileType)}/threshold`, {
-    method: 'PUT',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(thresholds),
   });

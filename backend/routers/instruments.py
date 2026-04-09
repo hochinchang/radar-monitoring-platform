@@ -34,6 +34,7 @@ def get_instruments() -> InstrumentListResponse:
     )
 
 
+@router.post("/{file_type}/threshold", response_model=ThresholdUpdateResponse)
 @router.put("/{file_type}/threshold", response_model=ThresholdUpdateResponse)
 def update_threshold(file_type: str, body: InstrumentThresholdSetting) -> ThresholdUpdateResponse:
     # 只在 DB 可用時驗證 file_type 是否存在；DB 不可用時直接允許更新
