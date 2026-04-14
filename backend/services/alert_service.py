@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
@@ -49,6 +50,12 @@ LEFT JOIN (
 """)
 
 _SYSTEM_IP_DEPT_SQL = text("SELECT IP, Department FROM SystemIPList")
+
+# ── 儀器狀態快取 ─────────────────────────────────────────────
+_STATUS_CACHE_TTL = 60  # 秒
+_status_cache: list[InstrumentStatus] | None = None
+_status_cache_time: float = 0.0
+_status_cache_lock = threading.Lock()
 
 
 def _default_thresholds() -> Tuple[float, float, float]:
