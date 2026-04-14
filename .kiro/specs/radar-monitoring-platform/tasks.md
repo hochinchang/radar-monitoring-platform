@@ -77,6 +77,14 @@
   - 移除舊的「總數 / 正常數」純文字統計摘要，改為可互動的折疊元件
   - _需求：2.8_
 
+- [x] 10.2 儀器狀態頁面科別篩選列（需求 2.9–2.11）
+  - `instruments.html`：在 status-bar 下方新增 `.dept-filter-bar`，包含「全部」及五個科別按鈕
+  - `dashboard.js`：維護 `_activeDept` 狀態，點擊按鈕時更新 active 樣式並重新渲染
+  - 篩選為純前端操作，不重新打 API，直接從 `_lastInstruments` 快取重新渲染
+  - 自動刷新後保持目前選取的篩選狀態
+  - `style.css`：新增 `.dept-filter-bar`、`.dept-btn`、`.dept-btn.active` 樣式
+  - _需求：2.9、2.10、2.11_
+
 - [x] 11. 電腦即時狀況頁面（computers.html + computers.js）— 需更新警示門檻
   - 依 Department 分組顯示系統負載/記憶體卡片
   - 依 Department 分組顯示磁碟使用率（%）卡片

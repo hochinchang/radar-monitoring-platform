@@ -5,6 +5,8 @@
 
 const REFRESH_INTERVAL_MS = 60_000;
 let _refreshTimer = null;
+let _activeDept = 'all';
+let _lastInstruments = null;
 
 const DEPT_LABELS = {
   sos:  '衛星作業科',
@@ -89,15 +91,26 @@ function _isNormal(inst) {
 }
 
 function _renderInstruments(instruments) {
+  _lastInstruments = instruments;
   const container = document.getElementById('instruments-container');
   if (!instruments || instruments.length === 0) {
     container.innerHTML = '<p class="loading">目前無儀器資料</p>';
     return;
   }
 
+  // 依篩選過濾
+  const filtered = _activeDept === 'all'
+    ? instruments
+    : instruments.filter(i => (i.department || '').toLowerCase() === _activeDept);
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="loading">此科別目前無儀器資料</p>';
+    return;
+  }
+
   // 依 department 分組
   const groups = {};
-  for (const inst of instruments) {
+  for (const inst of filtered) {
     const key = (inst.department || '').toLowerCase() || 'other';
     if (!groups[key]) groups[key] = [];
     groups[key].push(inst);
@@ -176,6 +189,17 @@ function _resetRefreshTimer() {
 async function _init() {
   _tickClock();
   setInterval(_tickClock, 1000);
+
+  // 科別篩選按鈕
+  document.querySelectorAll('.dept-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.dept-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _activeDept = btn.dataset.dept;
+      if (_lastInstruments) _renderInstruments(_lastInstruments);
+    });
+  });
+
   document.getElementById('btn-refresh').addEventListener('click', () => {
     _refreshData();
     _resetRefreshTimer();

@@ -62,6 +62,9 @@
 6. THE Dashboard SHALL 為每個 Instrument 各自顯示獨立的狀態區塊，包含 IP、FileType、EquipmentName 與時間差數值。
 7. THE Platform SHALL 從各 FileCheck 資料表取得每個 Instrument 的最新一筆快照，以判斷即時狀態。
 8. THE Dashboard SHALL 依科別（Department）分組顯示儀器狀態，所有正常的就不單獨顯示出來，用一個綠色方框顯有總共有多少個機器（或資料），正常的有多少，滑鼠點一下才會展開來各別顯示。
+9. THE Dashboard SHALL 在儀器狀態頁面頂部提供科別篩選列，包含「全部」及各科別按鈕（氣象雷達科、海象雷達科、衛星作業科、品管科、應用科），WHEN 操作人員點擊某科別按鈕，THE Dashboard SHALL 僅顯示該科別的儀器分組，其餘科別隱藏。
+10. WHEN 操作人員點擊「全部」按鈕，THE Dashboard SHALL 顯示所有科別的儀器分組。
+11. WHEN 資料自動刷新後，THE Dashboard SHALL 保持目前選取的科別篩選狀態不變。
 
 ---
 

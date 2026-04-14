@@ -81,6 +81,34 @@ button:hover { background: #1d4ed8; }
   padding-bottom: 8px;
 }
 
+/* ── Dept filter bar ── */
+.dept-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px 0;
+}
+
+.dept-btn {
+  background: #1e2235;
+  color: #94a3b8;
+  border: 1px solid #2d3148;
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dept-btn:hover {
+  background: #2d3148;
+  color: #e2e8f0;
+}
+.dept-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
 /* ── Instruments grid ── */
 .instruments-grid {
   display: flex;
