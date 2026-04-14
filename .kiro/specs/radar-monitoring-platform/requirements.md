@@ -10,12 +10,12 @@
 
 - **平台（Platform）**：本雷達監控整合平台網頁應用系統的總稱。
 - **Dashboard**：平台的主要監控畫面，集中顯示所有即時指標。
-- **缺資料警示（Missing_Data_Alert）**：當某儀器最新資料的時間差（DiffTime）超過該儀器設定的閾值時，Dashboard 以顏色（黃/橙/紅）顯示的視覺提示。主動推播通知由外部系統負責。
 - **儀器（Instrument）**：對應 FileType，代表一種雷達資料類型或設備，每個儀器有各自獨立的閾值設定。
 - **資料庫（Database）**：儲存雷達資料的 MySQL 資料庫。
-- **刷新週期（Refresh_Interval）**：Dashboard 自動向後端重新取得最新資料的時間間隔，固定為 10 秒。
+- **刷新週期（Refresh_Interval）**：Dashboard 自動向後端重新取得最新資料的時間間隔，固定為 60 秒。
 - **本地時間（Local_Time）**：伺服器或瀏覽器所在時區的當前時間。
 - **UTC 時間（UTC_Time）**：協調世界時（Coordinated Universal Time）的當前時間。
+- **$T$**：資料週期結束時間，用於計算檔案到位時間差，通常指的是兩筆資料的時間間隔。異常判定標準與告警機制
 
 ---
 
@@ -40,13 +40,25 @@
 
 > **注意：** 主動推播通知（email、SMS、webhook 等）由另一個專案負責，本平台僅負責視覺化呈現。
 
+#### 檔案到位判定標準
+
+以資料週期結束時間 $T$ 為基準：
+
+| 狀態 | 條件 | 燈號 |
+|------|------|------|
+| 正常（Normal） | diff ≤ $T$ + 5 分鐘 | 🟢 綠色 |
+| 延遲（Delayed） | $T$ + 5 < diff ≤ $T$ + 10 分鐘 | 🟡 黃色 |
+| 嚴重延遲（Critical Delay） | $T$ + 10 < diff ≤ $T$ + 20 分鐘 | 🟠 橙色 |
+| 遺失（Missing） | diff > $T$ + 20 分鐘 | 🔴 紅色 |
+| 斷線 | diff > 14400 分鐘或無資料 | ⬜ 灰色 |
+
 #### 驗收標準
 
-1. WHEN 某 Instrument 的最新資料 DiffTime 超過黃色閾值，THE Dashboard SHALL 以黃色顯示該 Instrument 的狀態區塊。
-2. WHEN 某 Instrument 的最新資料 DiffTime 超過橙色閾值，THE Dashboard SHALL 以橙色顯示該 Instrument 的狀態區塊。
-3. WHEN 某 Instrument 的最新資料 DiffTime 超過紅色閾值，THE Dashboard SHALL 以紅色顯示該 Instrument 的狀態區塊。
-4. WHEN 某 Instrument 的最新資料 DiffTime 在黃色閾值以內，THE Dashboard SHALL 以綠色顯示正常狀態。
-5. WHEN 某 Instrument 的 DiffTime 超過 14400 分鐘或無資料，THE Dashboard SHALL 顯示「斷線」。
+1. WHEN 某 Instrument 的 DiffTime 在 $T$ + 5 分鐘以內，THE Dashboard SHALL 以綠色顯示有總共有多少個機器（或資料），正常的有多少。
+2. WHEN 某 Instrument 的 DiffTime 超過 $T$ + 5 分鐘（延遲），THE Dashboard SHALL 以黃色顯示。
+3. WHEN 某 Instrument 的 DiffTime 超過 $T$ + 10 分鐘（嚴重延遲），THE Dashboard SHALL 以橙色顯示。
+4. WHEN 某 Instrument 的 DiffTime 超過 $T$ + 20 分鐘（遺失），THE Dashboard SHALL 以紅色顯示。
+5. WHEN 某 Instrument 的 DiffTime 超過 14400 分鐘或無資料，THE Dashboard SHALL 以灰色顯示「斷線」。
 6. THE Dashboard SHALL 為每個 Instrument 各自顯示獨立的狀態區塊，包含 IP、FileType、EquipmentName 與時間差數值。
 7. THE Platform SHALL 從各 FileCheck 資料表取得每個 Instrument 的最新一筆快照，以判斷即時狀態。
 8. THE Dashboard SHALL 依科別（Department）分組顯示儀器狀態。
@@ -59,7 +71,7 @@
 
 #### 驗收標準
 
-1. THE Dashboard SHALL 以 Refresh_Interval（10 秒）為週期，自動向後端重新取得最新資料並更新所有顯示元件。
+1. THE Dashboard SHALL 以 Refresh_Interval（60 秒）為週期，自動向後端重新取得最新資料並更新所有顯示元件。
 2. WHEN 自動刷新觸發，THE Dashboard SHALL 在不重新載入整個頁面的情況下更新儀器狀態與電腦系統狀態。
 3. THE Dashboard SHALL 顯示上一次成功刷新的時間戳記。
 4. IF 自動刷新期間發生網路錯誤，THEN THE Platform SHALL 在 Dashboard 上顯示「資料更新失敗，正在重試」的提示，並於下一個 Refresh_Interval 重新嘗試。
@@ -76,32 +88,55 @@
 1. THE Platform SHALL 透過設定檔管理 Database 的連線參數（主機、埠號、資料庫名稱、帳號、密碼），不得將連線參數硬編碼於程式碼中。
 2. THE Platform SHALL 維護 Database 連線池，以支援 Dashboard 的並發查詢需求。
 3. THE Platform SHALL 在 5 秒內回傳查詢結果。
-4. IF Database 連線中斷，THEN THE Platform SHALL 自動嘗試重新連線，重試間隔為 10 秒，最多重試 3 次。
-5. IF 連續 3 次重連均失敗，THEN THE Platform SHALL 記錄錯誤日誌並在 Dashboard 顯示持續性的連線失敗警示。
+4. THE Platform SHALL 使用 60 秒記憶體快取，DB 連線失敗時回傳上次快取結果。
+5. IF Database 連線中斷，THEN THE Platform SHALL 自動嘗試重新連線，重試間隔為 10 秒，最多重試 3 次。
+6. IF 連續 3 次重連均失敗，THEN THE Platform SHALL 記錄錯誤日誌並在 Dashboard 顯示持續性的連線失敗警示。
 
 ---
 
 ### 需求 5：儀器時間差閾值管理
 
-**使用者故事：** 身為操作人員，我希望能為每個儀器個別設定三段閾值，以便根據各儀器的資料特性調整警示靈敏度。
+**使用者故事：** 身為操作人員，我希望只需設定每個儀器的資料週期 $T$，系統自動計算三段警示門檻，以便根據各儀器的資料特性調整警示靈敏度。
+
+#### 閾值計算規則
+
+操作人員只需設定每個儀器的資料週期 $T$（分鐘），系統自動計算：
+
+| 閾值 | 計算方式 | 對應狀態 |
+|------|---------|---------|
+| 黃色閾值 | $T$ + 5 分鐘 | 延遲（Delayed） |
+| 橙色閾值 | $T$ + 10 分鐘 | 嚴重延遲（Critical Delay） |
+| 紅色閾值 | $T$ + 20 分鐘 | 遺失（Missing） |
+
+預設 $T$ = 7 分鐘，預設門檻為黃色 12 分鐘、橙色 17 分鐘、紅色 27 分鐘。
 
 #### 驗收標準
 
 1. THE Platform SHALL 從 FileTypeList 資料表取得所有 Instrument 清單，作為閾值設定的儀器來源。
-2. THE Dashboard SHALL 提供設定介面，讓操作人員查看所有 Instrument 及其目前的黃色、橙色、紅色閾值（單位：分鐘）。
-3. WHEN 操作人員修改閾值，THE Platform SHALL 儲存該設定至 thresholds.yaml 並立即套用至後續的狀態判斷。
-4. THE Platform SHALL 允許操作人員為每個 Instrument 個別設定閾值，不同 Instrument 的閾值設定互相獨立。
-5. IF 操作人員輸入的閾值為負數，THEN THE Platform SHALL 拒絕該輸入並顯示驗證錯誤訊息。
+2. THE Dashboard SHALL 提供設定介面，讓操作人員查看所有 Instrument 及其目前的 $T$ 值（單位：分鐘）。
+3. WHEN 操作人員修改 $T$ 值，THE Platform SHALL 儲存該設定至 thresholds.yaml 並立即套用至後續的狀態判斷。
+4. THE Platform SHALL 允許操作人員為每個 Instrument 個別設定 $T$ 值，不同 Instrument 的設定互相獨立。
+5. IF 操作人員輸入的 $T$ 值為負數或零，THEN THE Platform SHALL 拒絕該輸入並顯示驗證錯誤訊息。
 
 ---
 
 ### 需求 6：電腦系統狀態顯示
 
-**使用者故事：** 身為操作人員，我希望在 Dashboard 上看到各電腦的系統負載、記憶體與磁碟使用率，以便掌握硬體資源狀況。
+**使用者故事：** 身為操作人員，我希望在 Dashboard 上看到各電腦的系統負載、記憶體與磁碟使用率，並以三段燈號顯示嚴重程度。
+
+#### 硬體警戒門檻
+
+| 指標 | 黃燈 | 橙燈 | 紅燈 |
+|------|------|------|------|
+| CPU 使用率 | 連續 1 分鐘 > 80% | 連續 5 分鐘 > 80% | 連續 15 分鐘 > 80% |
+| CPU 更新逾時 | > 3 分鐘未更新 | > 10 分鐘未更新 | > 30 分鐘未更新 |
+| 記憶體負載 | > 60% | > 70% | > 80% |
+| 磁碟剩餘空間 | < 10% | < 5% | < 1% |
 
 #### 驗收標準
 
 1. THE Dashboard SHALL 顯示各電腦的 CPU 負載（1 分鐘）、記憶體使用率（%）與磁碟使用率（%）。
 2. THE Dashboard SHALL 依科別（Department）分組顯示電腦狀態。
-3. WHEN 記憶體使用率超過 90%，THE Dashboard SHALL 以警示樣式顯示該電腦。
-4. WHEN 磁碟使用率超過 85%，THE Dashboard SHALL 以警示樣式顯示該電腦。
+3. THE Dashboard SHALL 依硬體警戒門檻以黃/橙/紅三段燈號顯示各電腦的警示狀態。
+4. WHEN CPU 使用率超過 3 分鐘未更新，THE Dashboard SHALL 以黃燈顯示（表示電腦可能關機或網路不通）。
+5. WHEN CPU 使用率超過 30 分鐘未更新，THE Dashboard SHALL 以紅燈顯示。

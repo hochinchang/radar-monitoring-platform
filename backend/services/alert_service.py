@@ -2,7 +2,8 @@
 Alert service for radar-monitoring-platform.
 Queries all FileCheck tables for each instrument's latest snapshot,
 calculates diff_time_minutes, and compares against per-instrument thresholds.
-Thresholds are persisted in config/thresholds.yaml.
+Thresholds are persisted in config/thresholds.yaml using interval_minutes (T).
+Auto-calculated: yellow = T+5, orange = T+10, red = T+20.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ import yaml
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
-from backend.config import get_config
 from backend.database import get_session
 from backend.models import InstrumentStatus
 
@@ -26,7 +26,11 @@ logger = logging.getLogger("alert_service")
 
 _THRESHOLDS_PATH = Path(__file__).parent.parent.parent / "config" / "thresholds.yaml"
 _thresholds_lock = threading.Lock()
-_thresholds_cache: dict[str, Tuple[float, float, float]] | None = None
+# Cache maps file_type -> interval_minutes (float)
+_thresholds_cache: dict[str, float] | None = None
+_default_interval: float | None = None
+
+_DEFAULT_INTERVAL_MINUTES = 7.0
 
 _INSTRUMENT_STATUS_SQL = text("""
 SELECT
@@ -58,55 +62,53 @@ _status_cache_time: float = 0.0
 _status_cache_lock = threading.Lock()
 
 
-def _default_thresholds() -> Tuple[float, float, float]:
-    s = get_config().system
-    return (s.default_threshold_yellow, s.default_threshold_orange, s.default_threshold_red)
+def calculate_thresholds(interval_minutes: float) -> Tuple[float, float, float]:
+    """Auto-calculate three alert thresholds from interval T.
+
+    Returns (yellow, orange, red) = (T+5, T+10, T+20).
+    """
+    return (
+        interval_minutes + 5.0,
+        interval_minutes + 10.0,
+        interval_minutes + 20.0,
+    )
 
 
-def _load_thresholds_file() -> dict[str, Tuple[float, float, float]]:
-    """Load thresholds from thresholds.yaml, falling back to config defaults."""
-    defaults = _default_thresholds()
+def _load_thresholds_file() -> Tuple[float, dict[str, float]]:
+    """Load thresholds.yaml.
+
+    Returns (default_interval, {file_type: interval_minutes}).
+    Falls back to _DEFAULT_INTERVAL_MINUTES if file is missing or malformed.
+    """
     if not _THRESHOLDS_PATH.exists():
-        return {}
+        return _DEFAULT_INTERVAL_MINUTES, {}
     try:
         with _THRESHOLDS_PATH.open("r", encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
         file_defaults = raw.get("defaults", {})
-        d_yellow = float(file_defaults.get("threshold_yellow", defaults[0]))
-        d_orange = float(file_defaults.get("threshold_orange", defaults[1]))
-        d_red    = float(file_defaults.get("threshold_red",    defaults[2]))
-        result: dict[str, Tuple[float, float, float]] = {}
+        default_interval = float(
+            file_defaults.get("interval_minutes", _DEFAULT_INTERVAL_MINUTES)
+        )
+        result: dict[str, float] = {}
         for ft, val in (raw.get("instruments") or {}).items():
             if val is None:
                 continue
-            result[ft] = (
-                float(val.get("threshold_yellow", d_yellow)),
-                float(val.get("threshold_orange", d_orange)),
-                float(val.get("threshold_red",    d_red)),
-            )
-        return result
+            result[ft] = float(val.get("interval_minutes", default_interval))
+        return default_interval, result
     except Exception as exc:
         logger.warning("Failed to load thresholds.yaml: %s", exc)
-        return {}
+        return _DEFAULT_INTERVAL_MINUTES, {}
 
 
-def _save_thresholds_file(thresholds: dict[str, Tuple[float, float, float]]) -> None:
-    """Persist thresholds to thresholds.yaml."""
-    defaults = _default_thresholds()
+def _save_thresholds_file(
+    default_interval: float, instruments: dict[str, float]
+) -> None:
+    """Persist interval_minutes settings to thresholds.yaml."""
     instruments_section = {
-        ft: {
-            "threshold_yellow": t[0],
-            "threshold_orange": t[1],
-            "threshold_red":    t[2],
-        }
-        for ft, t in thresholds.items()
+        ft: {"interval_minutes": t} for ft, t in instruments.items()
     }
     data = {
-        "defaults": {
-            "threshold_yellow": defaults[0],
-            "threshold_orange": defaults[1],
-            "threshold_red":    defaults[2],
-        },
+        "defaults": {"interval_minutes": default_interval},
         "instruments": instruments_section,
     }
     try:
@@ -117,13 +119,23 @@ def _save_thresholds_file(thresholds: dict[str, Tuple[float, float, float]]) -> 
         logger.error("Failed to save thresholds.yaml: %s", exc)
 
 
-def _get_thresholds() -> dict[str, Tuple[float, float, float]]:
-    global _thresholds_cache
+def _ensure_loaded() -> None:
+    """Ensure thresholds cache is populated (call within _thresholds_lock)."""
+    global _thresholds_cache, _default_interval
+    if _thresholds_cache is None:
+        _default_interval, _thresholds_cache = _load_thresholds_file()
+        logger.info(
+            "Thresholds loaded: default_interval=%.1f, %d custom entries",
+            _default_interval,
+            len(_thresholds_cache),
+        )
+
+
+def _get_interval(file_type: str) -> float:
+    """Return interval_minutes for a given file_type, falling back to defaults."""
     with _thresholds_lock:
-        if _thresholds_cache is None:
-            _thresholds_cache = _load_thresholds_file()
-            logger.info("Thresholds loaded from file: %d custom entries", len(_thresholds_cache))
-    return _thresholds_cache
+        _ensure_loaded()
+        return _thresholds_cache.get(file_type, _default_interval)  # type: ignore[return-value]
 
 
 def _load_ip_department_map() -> dict[str, str]:
@@ -137,8 +149,14 @@ def _load_ip_department_map() -> dict[str, str]:
 
 
 def get_all_instrument_statuses() -> list[InstrumentStatus]:
-    thresholds = _get_thresholds()
-    default = _default_thresholds()
+    global _status_cache, _status_cache_time
+    now = time.time()
+
+    with _status_cache_lock:
+        if _status_cache is not None and now - _status_cache_time < _STATUS_CACHE_TTL:
+            return _status_cache
+
+    from backend.config import get_config
     timeout = get_config().system.query_timeout_seconds
     ip_dept = _load_ip_department_map()
 
@@ -149,12 +167,14 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
             ).fetchall()
     except (OperationalError, SQLAlchemyError) as exc:
         logger.error("get_all_instrument_statuses: DB error: %s", exc)
-        return []
+        with _status_cache_lock:
+            return _status_cache or []
 
     statuses: list[InstrumentStatus] = []
     for row in rows:
         file_type: str = row.FileType
-        t_yellow, t_orange, t_red = thresholds.get(file_type, default)
+        interval = _get_interval(file_type)
+        t_yellow, t_orange, t_red = calculate_thresholds(interval)
         department = ip_dept.get(row.IP or "", "") or None
 
         # 找不到對應科別的儀器不顯示
@@ -169,6 +189,7 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
                 department=department,
                 latest_file_time=None,
                 diff_time_minutes=None,
+                interval_minutes=interval,
                 threshold_yellow=t_yellow,
                 threshold_orange=t_orange,
                 threshold_red=t_red,
@@ -186,6 +207,7 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
             department=department,
             latest_file_time=latest_file_time,
             diff_time_minutes=diff,
+            interval_minutes=interval,
             threshold_yellow=t_yellow,
             threshold_orange=t_orange,
             threshold_red=t_red,
@@ -193,25 +215,34 @@ def get_all_instrument_statuses() -> list[InstrumentStatus]:
         ))
 
     logger.info("get_all_instrument_statuses: %d instruments queried", len(statuses))
+    with _status_cache_lock:
+        _status_cache = statuses
+        _status_cache_time = time.time()
     return statuses
 
 
 def get_instrument_thresholds(file_type: str) -> Tuple[float, float, float]:
-    return _get_thresholds().get(file_type, _default_thresholds())
+    """Return (yellow, orange, red) thresholds for a file_type."""
+    return calculate_thresholds(_get_interval(file_type))
 
 
-def set_instrument_thresholds(file_type: str, yellow: float, orange: float, red: float) -> None:
-    if any(v < 0 for v in (yellow, orange, red)):
-        raise ValueError("Thresholds must be >= 0")
+def set_instrument_thresholds(file_type: str, interval_minutes: float) -> None:
+    """Persist interval_minutes for a specific instrument."""
+    if interval_minutes <= 0:
+        raise ValueError("interval_minutes must be > 0")
     with _thresholds_lock:
-        _get_thresholds()[file_type] = (yellow, orange, red)
-        _save_thresholds_file(_thresholds_cache)
-    logger.info("Thresholds updated: %s -> yellow=%.1f orange=%.1f red=%.1f", file_type, yellow, orange, red)
+        _ensure_loaded()
+        _thresholds_cache[file_type] = interval_minutes  # type: ignore[index]
+        _save_thresholds_file(_default_interval, _thresholds_cache)  # type: ignore[arg-type]
+    t_yellow, t_orange, t_red = calculate_thresholds(interval_minutes)
+    logger.info(
+        "Thresholds updated: %s -> T=%.1f (yellow=%.1f orange=%.1f red=%.1f)",
+        file_type, interval_minutes, t_yellow, t_orange, t_red,
+    )
 
 
 def list_instruments() -> list[dict]:
-    thresholds = _get_thresholds()
-    default = _default_thresholds()
+    from backend.config import get_config
     timeout = get_config().system.query_timeout_seconds
 
     try:
@@ -227,9 +258,11 @@ def list_instruments() -> list[dict]:
         {
             "file_type": row.FileType,
             "equipment_name": row.EquipmentName or "",
-            "threshold_yellow": thresholds.get(row.FileType, default)[0],
-            "threshold_orange": thresholds.get(row.FileType, default)[1],
-            "threshold_red":    thresholds.get(row.FileType, default)[2],
+            "interval_minutes": _get_interval(row.FileType),
+            **dict(zip(
+                ("threshold_yellow", "threshold_orange", "threshold_red"),
+                calculate_thresholds(_get_interval(row.FileType)),
+            )),
         }
         for row in rows
     ]

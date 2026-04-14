@@ -102,6 +102,21 @@ button:hover { background: #1d4ed8; }
   font-weight: 600;
   padding: 8px 14px;
   letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.group-summary {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0;
+}
+
+.summary-normal {
+  color: #4ade80;
+  font-weight: 600;
 }
 
 .group-cards {
@@ -325,3 +340,43 @@ button:hover { background: #1d4ed8; }
   white-space: nowrap;
 }
 .back-link:hover { text-decoration: underline; }
+
+/* ── Computer status card extras ── */
+.badge-ok {
+  display: inline-block;
+  margin-top: 6px;
+  background: #166534;
+  color: #bbf7d0;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.metric-label { color: #94a3b8; }
+.metric-value  { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* value colour by alert level */
+.diff-alert-ok     { color: #4ade80; }
+.diff-alert-yellow { color: #facc15; }
+.diff-alert-orange { color: #fb923c; }
+.diff-alert-red    { color: #ef4444; }
+
+/* card border/background by alert level */
+.instrument-card.level-alert-yellow { border-color: #ca8a04; background: #1c1500; }
+.instrument-card.level-alert-orange { border-color: #ea580c; background: #1c0a00; }
+.instrument-card.level-alert-red    { border-color: #ef4444; background: #1c0a0a; }

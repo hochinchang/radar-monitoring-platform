@@ -3,7 +3,7 @@
  * 依 Department 分組顯示儀器警示狀態，無趨勢圖。
  */
 
-const REFRESH_INTERVAL_MS = 10_000;
+const REFRESH_INTERVAL_MS = 60_000;
 let _refreshTimer = null;
 
 const DEPT_LABELS = {
@@ -102,10 +102,19 @@ function _renderInstruments(instruments) {
 
   container.innerHTML = orderedKeys.map(key => {
     const label = DEPT_LABELS[key] || key;
-    const cards = groups[key].map(_makeCard).join('');
+    const groupInsts = groups[key];
+    const total = groupInsts.length;
+    const normal = groupInsts.filter(inst => {
+      const diff = inst.diff_time_minutes;
+      return diff != null && diff <= (inst.threshold_yellow ?? 10);
+    }).length;
+    const cards = groupInsts.map(_makeCard).join('');
     return `
       <div class="instrument-group">
-        <div class="group-header">${label}</div>
+        <div class="group-header">
+          <span>${label}</span>
+          <span class="group-summary">${total} / <span class="summary-normal">${normal}</span> 正常</span>
+        </div>
         <div class="group-cards">${cards}</div>
       </div>`;
   }).join('');

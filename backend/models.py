@@ -17,16 +17,15 @@ class InstrumentStatus(BaseModel):
     department: Optional[str] = None
     latest_file_time: Optional[datetime] = None
     diff_time_minutes: Optional[float] = None
-    threshold_yellow: float
-    threshold_orange: float
-    threshold_red: float
+    interval_minutes: float          # 資料週期 T
+    threshold_yellow: float          # T + 5（自動計算）
+    threshold_orange: float          # T + 10（自動計算）
+    threshold_red: float             # T + 20（自動計算）
     is_alert: bool
 
 
-class InstrumentThresholdSetting(BaseModel):
-    threshold_yellow: float = Field(ge=0.0)
-    threshold_orange: float = Field(ge=0.0)
-    threshold_red: float = Field(ge=0.0)
+class InstrumentIntervalSetting(BaseModel):
+    interval_minutes: float = Field(gt=0.0)  # 資料週期 T，必須大於 0
 
 
 class CurrentStatusResponse(BaseModel):
@@ -38,6 +37,7 @@ class CurrentStatusResponse(BaseModel):
 class InstrumentListItem(BaseModel):
     file_type: str
     equipment_name: str
+    interval_minutes: float
     threshold_yellow: float
     threshold_orange: float
     threshold_red: float
@@ -49,6 +49,7 @@ class InstrumentListResponse(BaseModel):
 
 class ThresholdUpdateResponse(BaseModel):
     file_type: str
+    interval_minutes: float
     threshold_yellow: float
     threshold_orange: float
     threshold_red: float
