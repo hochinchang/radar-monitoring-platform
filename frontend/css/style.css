@@ -207,6 +207,46 @@ button:hover { background: #1d4ed8; }
   margin-top: 4px;
 }
 
+/* ── Normal instruments collapsible summary ── */
+.normal-summary-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 4px;
+  padding: 10px 14px;
+  background: #052e16;
+  border: 1px solid #16a34a;
+  border-radius: 8px;
+  color: #4ade80;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.normal-summary-box:hover {
+  background: #064e24;
+  border-color: #22c55e;
+}
+.normal-summary-icon {
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.normal-summary-box.expanded .normal-summary-icon {
+  transform: rotate(90deg);
+}
+
+.normal-cards-collapse {
+  display: none;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.normal-cards-collapse.open {
+  display: grid;
+}
+
 /* ── Chart ── */
 .chart-controls {
   display: flex;

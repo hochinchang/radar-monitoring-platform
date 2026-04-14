@@ -117,7 +117,7 @@ def get_disk_status() -> list[dict]
 | 頁面 | 檔案 | 說明 |
 |------|------|------|
 | 首頁 | `index.html` + `clock.js` | 導覽頁，三個入口 |
-| 儀器即時狀況 | `instruments.html` + `dashboard.js` | 依科別分組，顏色顯示時間差 |
+| 儀器即時狀況 | `instruments.html` + `dashboard.js` | 依科別分組，異常儀器直接顯示，正常儀器折疊為綠色摘要方框，點擊展開 |
 | 電腦即時狀況 | `computers.html` + `computers.js` | 依科別分組，負載/記憶體/磁碟 |
 | 儀器閾值設定 | `settings.html` + `settings.js` | 三段閾值設定，寫回 thresholds.yaml |
 
@@ -262,7 +262,9 @@ instruments:
 | diff > $T$ + 20 分鐘 | 🔴 紅色 | 遺失（Missing） |
 | diff > 14400 分鐘或 NULL | ⬜ 灰色 | 斷線 |
 
-各科別分組頂部顯示統計摘要：總儀器數 / 正常數，例如「12 / 10 正常」。
+各科別分組顯示邏輯：
+- **正常儀器**：不單獨顯示，以一個綠色摘要方框呈現「共 N 台，正常 M 台」，點擊後展開顯示各別正常儀器卡片。
+- **異常儀器**（黃/橙/紅/灰）：直接顯示在分組內，不需點擊展開。
 
 ### Pydantic 模型
 

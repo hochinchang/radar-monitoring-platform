@@ -83,6 +83,11 @@ function _makeCard(inst) {
     </div>`;
 }
 
+function _isNormal(inst) {
+  const diff = inst.diff_time_minutes;
+  return diff != null && diff <= (inst.threshold_yellow ?? 10);
+}
+
 function _renderInstruments(instruments) {
   const container = document.getElementById('instruments-container');
   if (!instruments || instruments.length === 0) {
@@ -104,20 +109,47 @@ function _renderInstruments(instruments) {
     const label = DEPT_LABELS[key] || key;
     const groupInsts = groups[key];
     const total = groupInsts.length;
-    const normal = groupInsts.filter(inst => {
-      const diff = inst.diff_time_minutes;
-      return diff != null && diff <= (inst.threshold_yellow ?? 10);
-    }).length;
-    const cards = groupInsts.map(_makeCard).join('');
+
+    const normalInsts   = groupInsts.filter(_isNormal);
+    const abnormalInsts = groupInsts.filter(inst => !_isNormal(inst));
+    const normalCount   = normalInsts.length;
+
+    const abnormalCards = abnormalInsts.map(_makeCard).join('');
+
+    const normalSummaryId = `normal-cards-${key}`;
+    const normalSummary = normalCount > 0 ? `
+      <div class="normal-summary-box" aria-expanded="false">
+        <span class="normal-summary-icon">▶</span>
+        <span>共 ${total} 台，正常 ${normalCount} 台</span>
+      </div>
+      <div class="normal-cards-collapse" id="${normalSummaryId}">
+        ${normalInsts.map(_makeCard).join('')}
+      </div>` : '';
+
     return `
       <div class="instrument-group">
         <div class="group-header">
           <span>${label}</span>
-          <span class="group-summary">${total} / <span class="summary-normal">${normal}</span> 正常</span>
         </div>
-        <div class="group-cards">${cards}</div>
+        <div class="group-cards">
+          ${abnormalCards}
+        </div>
+        ${normalSummary}
       </div>`;
   }).join('');
+
+  // Wire up toggle: clicking summary box toggles the collapse panel
+  container.querySelectorAll('.normal-summary-box').forEach(box => {
+    box.addEventListener('click', () => {
+      const willExpand = !box.classList.contains('expanded');
+      box.classList.toggle('expanded', willExpand);
+      box.setAttribute('aria-expanded', String(willExpand));
+      const panel = box.nextElementSibling;
+      if (panel && panel.classList.contains('normal-cards-collapse')) {
+        panel.classList.toggle('open', willExpand);
+      }
+    });
+  });
 }
 
 async function _refreshData() {

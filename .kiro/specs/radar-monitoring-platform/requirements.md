@@ -54,14 +54,14 @@
 
 #### 驗收標準
 
-1. WHEN 某 Instrument 的 DiffTime 在 $T$ + 5 分鐘以內，THE Dashboard SHALL 以綠色顯示有總共有多少個機器（或資料），正常的有多少。
+1. WHEN 某 Instrument 的 DiffTime 在 $T$ + 5 分鐘以內，THE Dashboard SHALL 以綠色顯示。
 2. WHEN 某 Instrument 的 DiffTime 超過 $T$ + 5 分鐘（延遲），THE Dashboard SHALL 以黃色顯示。
 3. WHEN 某 Instrument 的 DiffTime 超過 $T$ + 10 分鐘（嚴重延遲），THE Dashboard SHALL 以橙色顯示。
 4. WHEN 某 Instrument 的 DiffTime 超過 $T$ + 20 分鐘（遺失），THE Dashboard SHALL 以紅色顯示。
 5. WHEN 某 Instrument 的 DiffTime 超過 14400 分鐘或無資料，THE Dashboard SHALL 以灰色顯示「斷線」。
 6. THE Dashboard SHALL 為每個 Instrument 各自顯示獨立的狀態區塊，包含 IP、FileType、EquipmentName 與時間差數值。
 7. THE Platform SHALL 從各 FileCheck 資料表取得每個 Instrument 的最新一筆快照，以判斷即時狀態。
-8. THE Dashboard SHALL 依科別（Department）分組顯示儀器狀態。
+8. THE Dashboard SHALL 依科別（Department）分組顯示儀器狀態，所有正常的就不單獨顯示出來，用一個綠色方框顯有總共有多少個機器（或資料），正常的有多少，滑鼠點一下才會展開來各別顯示。
 
 ---
 
