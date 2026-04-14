@@ -126,14 +126,16 @@ function _renderInstruments(instruments) {
         ${normalInsts.map(_makeCard).join('')}
       </div>` : '';
 
+    const abnormalSection = abnormalCards
+      ? `<div class="group-cards">${abnormalCards}</div>`
+      : '';
+
     return `
       <div class="instrument-group">
         <div class="group-header">
           <span>${label}</span>
         </div>
-        <div class="group-cards">
-          ${abnormalCards}
-        </div>
+        ${abnormalSection}
         ${normalSummary}
       </div>`;
   }).join('');
