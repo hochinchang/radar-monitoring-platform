@@ -80,7 +80,8 @@ def get_instrument_history(file_type: str, ip: str, range: str) -> dict:
         dt = datetime.fromtimestamp(float(row.FileTime), tz=timezone.utc)
         data.append({
             "time": dt.isoformat(),
-            "diff_time_minutes": float(row.DiffTime) if row.DiffTime is not None else None,
+            # DiffTime 欄位單位為秒，換算成分鐘後回傳
+            "diff_time_minutes": float(row.DiffTime) / 60.0 if row.DiffTime is not None else None,
         })
 
     return {
