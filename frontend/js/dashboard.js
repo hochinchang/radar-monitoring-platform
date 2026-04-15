@@ -74,8 +74,20 @@ function _makeCard(inst) {
     ? `<div class="triggered-at">最新資料：${new Date(inst.latest_file_time).toLocaleString('zh-TW')}</div>`
     : '';
 
+  const fileType = inst.file_type || '';
+  const ip = inst.ip || '';
+  const equipmentName = inst.equipment_name || '';
+  const historyUrl = '/history.html?file_type=' + encodeURIComponent(fileType) +
+                     '&ip=' + encodeURIComponent(ip) +
+                     '&name=' + encodeURIComponent(equipmentName);
+
   return `
-    <div class="instrument-card level-${level}">
+    <div class="instrument-card level-${level}"
+         style="cursor:pointer"
+         data-file-type="${fileType}"
+         data-ip="${ip}"
+         data-equipment-name="${equipmentName}"
+         onclick="window.open('${historyUrl}', '_blank')">
       <div class="card-meta">${inst.ip || '--'}</div>
       <div class="card-title">${inst.file_type}</div>
       <div class="card-name">${inst.equipment_name || '--'}</div>
@@ -91,17 +103,22 @@ function _isNormal(inst) {
 }
 
 function _renderInstruments(instruments) {
-  _lastInstruments = instruments;
+  // 只在有新資料時才更新快取，篩選重繪時不覆寫
+  if (instruments !== null) {
+    _lastInstruments = instruments;
+  }
+  const source = _lastInstruments;
+
   const container = document.getElementById('instruments-container');
-  if (!instruments || instruments.length === 0) {
+  if (!source || source.length === 0) {
     container.innerHTML = '<p class="loading">目前無儀器資料</p>';
     return;
   }
 
   // 依篩選過濾
   const filtered = _activeDept === 'all'
-    ? instruments
-    : instruments.filter(i => (i.department || '').toLowerCase() === _activeDept);
+    ? source
+    : source.filter(i => (i.department || '').toLowerCase() === _activeDept);
 
   if (filtered.length === 0) {
     container.innerHTML = '<p class="loading">此科別目前無儀器資料</p>';
@@ -170,7 +187,7 @@ function _renderInstruments(instruments) {
 async function _refreshData() {
   try {
     const data = await fetchCurrentStatus();
-    _renderInstruments(data.instruments);
+    _renderInstruments(data.instruments);  // 有新資料，更新快取
     _clearStatus();
   } catch (e) {
     _showStatus(
@@ -196,7 +213,7 @@ async function _init() {
       document.querySelectorAll('.dept-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _activeDept = btn.dataset.dept;
-      if (_lastInstruments) _renderInstruments(_lastInstruments);
+      _renderInstruments(null);  // 用現有快取重繪，不覆寫 _lastInstruments
     });
   });
 

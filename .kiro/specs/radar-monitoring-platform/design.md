@@ -118,6 +118,7 @@ def get_disk_status() -> list[dict]
 |------|------|------|
 | 首頁 | `index.html` + `clock.js` | 導覽頁，三個入口 |
 | 儀器即時狀況 | `instruments.html` + `dashboard.js` | 依科別分組，異常儀器直接顯示，正常儀器折疊為綠色摘要方框，點擊展開；頁面頂部有科別篩選列 |
+| 儀器歷史資料 | `history.html` + `history.js` | 點擊儀器卡片後在新分頁開啟，顯示 DiffTime 時序圖（含閾值線）及同 IP 電腦的 CPU/記憶體/磁碟時序圖，支援 6h/1d/1w/1m/3m 時間範圍切換 |
 | 電腦即時狀況 | `computers.html` + `computers.js` | 依科別分組，負載/記憶體/磁碟 |
 | 儀器閾值設定 | `settings.html` + `settings.js` | 三段閾值設定，寫回 thresholds.yaml |
 
@@ -176,7 +177,49 @@ def get_disk_status() -> list[dict]
 
 ---
 
-#### GET `/api/v1/system/current`
+#### GET `/api/v1/history/{file_type}`
+
+取得特定儀器在指定時間範圍內的 DiffTime 歷史記錄。
+
+**Query 參數：**
+- `ip`：儀器 IP（必填）
+- `range`：時間範圍，可選值 `6h`、`1d`、`1w`、`1m`、`3m`（預設 `1d`）
+
+**回應（200 OK）：**
+```json
+{
+  "file_type": "RCMD_rb5_CS",
+  "ip": "192.168.1.10",
+  "range": "1d",
+  "threshold_yellow": 12.0,
+  "threshold_orange": 17.0,
+  "threshold_red": 27.0,
+  "data": [
+    { "time": "2026-04-14T10:00:00Z", "diff_time_minutes": 8.5 }
+  ]
+}
+```
+
+#### GET `/api/v1/history/system`
+
+取得特定 IP 電腦在指定時間範圍內的 CPU、記憶體、磁碟歷史記錄。
+
+**Query 參數：**
+- `ip`：電腦 IP（必填）
+- `range`：時間範圍，可選值同上
+
+**回應（200 OK）：**
+```json
+{
+  "ip": "192.168.1.10",
+  "range": "1d",
+  "cpu": [{ "time": "2026-04-14T10:00:00Z", "load_1": 12.3 }],
+  "memory": [{ "time": "2026-04-14T10:00:00Z", "memory_use": 55.2 }],
+  "disk": [{ "time": "2026-04-14T10:00:00Z", "used": 42.1 }]
+}
+```
+
+---
 
 取得各電腦的系統負載與記憶體使用率。
 

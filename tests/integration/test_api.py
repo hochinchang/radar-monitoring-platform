@@ -245,3 +245,149 @@ class TestDiskStatus:
             res = client.get("/api/v1/disk/current")
         assert res.status_code == 200
         assert res.json()["items"] == []
+
+
+# ── GET /api/v1/history/{file_type} ─────────────────────────
+
+class TestInstrumentHistory:
+    """需求 7.1–7.9：儀器歷史資料端點"""
+
+    def _mock_result(self, file_type="RADAR_A", ip="192.168.1.1", range="1d"):
+        return {
+            "file_type": file_type,
+            "ip": ip,
+            "range": range,
+            "threshold_yellow": 12.0,
+            "threshold_orange": 17.0,
+            "threshold_red": 27.0,
+            "data": [
+                {"time": "2026-04-14T10:00:00+00:00", "diff_time_minutes": 8.5},
+                {"time": "2026-04-14T11:00:00+00:00", "diff_time_minutes": 6.2},
+            ],
+        }
+
+    def test_returns_200_with_valid_params(self):
+        """GET /api/v1/history/{file_type} 回傳 200 與正確 JSON 結構"""
+        mock_result = self._mock_result()
+        with patch("backend.routers.history.get_instrument_history", return_value=mock_result):
+            res = client.get("/api/v1/history/RADAR_A?ip=192.168.1.1&range=1d")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["file_type"] == "RADAR_A"
+        assert data["ip"] == "192.168.1.1"
+        assert data["range"] == "1d"
+        assert "threshold_yellow" in data
+        assert "threshold_orange" in data
+        assert "threshold_red" in data
+        assert isinstance(data["data"], list)
+
+    def test_data_points_have_time_and_diff(self):
+        """回傳的資料點包含 time 與 diff_time_minutes 欄位"""
+        mock_result = self._mock_result()
+        with patch("backend.routers.history.get_instrument_history", return_value=mock_result):
+            res = client.get("/api/v1/history/RADAR_A?ip=192.168.1.1&range=1d")
+        point = res.json()["data"][0]
+        assert "time" in point
+        assert "diff_time_minutes" in point
+
+    def test_returns_empty_data_when_no_records(self):
+        """無歷史資料時回傳空 data 陣列（需求 7.9）"""
+        mock_result = self._mock_result()
+        mock_result["data"] = []
+        with patch("backend.routers.history.get_instrument_history", return_value=mock_result):
+            res = client.get("/api/v1/history/RADAR_A?ip=192.168.1.1&range=6h")
+        assert res.status_code == 200
+        assert res.json()["data"] == []
+
+    def test_returns_422_for_invalid_range(self):
+        """無效 range 參數回傳 422"""
+        res = client.get("/api/v1/history/RADAR_A?ip=192.168.1.1&range=invalid")
+        assert res.status_code == 422
+
+    def test_all_valid_ranges_accepted(self):
+        """所有合法 range 值（6h/1d/1w/1m/3m）均被接受"""
+        for r in ("6h", "1d", "1w", "1m", "3m"):
+            mock_result = self._mock_result(range=r)
+            mock_result["data"] = []
+            with patch("backend.routers.history.get_instrument_history", return_value=mock_result):
+                res = client.get(f"/api/v1/history/RADAR_A?ip=192.168.1.1&range={r}")
+            assert res.status_code == 200, f"range={r} should be accepted"
+
+    def test_thresholds_included_in_response(self):
+        """回傳結果包含 threshold_yellow/orange/red 供前端畫閾值線（需求 7.5）"""
+        mock_result = self._mock_result()
+        with patch("backend.routers.history.get_instrument_history", return_value=mock_result):
+            res = client.get("/api/v1/history/RADAR_A?ip=192.168.1.1&range=1d")
+        data = res.json()
+        assert data["threshold_yellow"] == 12.0
+        assert data["threshold_orange"] == 17.0
+        assert data["threshold_red"] == 27.0
+
+
+# ── GET /api/v1/history/system ──────────────────────────────
+
+class TestSystemHistory:
+    """需求 7.6–7.8：電腦系統歷史資料端點"""
+
+    def _mock_result(self, ip="192.168.1.1", range="1d"):
+        return {
+            "ip": ip,
+            "range": range,
+            "cpu": [{"time": "2026-04-14T10:00:00+00:00", "load_1": 12.3}],
+            "memory": [{"time": "2026-04-14T10:00:00+00:00", "memory_use": 55.2}],
+            "disk": [{"time": "2026-04-14T10:00:00+00:00", "used": 42.1}],
+        }
+
+    def test_returns_200_with_valid_params(self):
+        """GET /api/v1/history/system 回傳 200 與正確 JSON 結構"""
+        mock_result = self._mock_result()
+        with patch("backend.routers.history.get_system_history", return_value=mock_result):
+            res = client.get("/api/v1/history/system?ip=192.168.1.1&range=1d")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["ip"] == "192.168.1.1"
+        assert data["range"] == "1d"
+        assert "cpu" in data
+        assert "memory" in data
+        assert "disk" in data
+
+    def test_cpu_memory_disk_are_lists(self):
+        """cpu、memory、disk 欄位均為陣列（需求 7.6）"""
+        mock_result = self._mock_result()
+        with patch("backend.routers.history.get_system_history", return_value=mock_result):
+            res = client.get("/api/v1/history/system?ip=192.168.1.1&range=1d")
+        data = res.json()
+        assert isinstance(data["cpu"], list)
+        assert isinstance(data["memory"], list)
+        assert isinstance(data["disk"], list)
+
+    def test_cpu_data_point_has_load_1(self):
+        """CPU 資料點包含 load_1 欄位（需求 7.6）"""
+        mock_result = self._mock_result()
+        with patch("backend.routers.history.get_system_history", return_value=mock_result):
+            res = client.get("/api/v1/history/system?ip=192.168.1.1&range=1d")
+        assert "load_1" in res.json()["cpu"][0]
+
+    def test_returns_422_for_invalid_range(self):
+        """無效 range 參數回傳 422"""
+        res = client.get("/api/v1/history/system?ip=192.168.1.1&range=bad")
+        assert res.status_code == 422
+
+    def test_returns_empty_lists_when_no_data(self):
+        """無歷史資料時回傳空陣列（需求 7.9）"""
+        mock_result = {"ip": "192.168.1.1", "range": "3m", "cpu": [], "memory": [], "disk": []}
+        with patch("backend.routers.history.get_system_history", return_value=mock_result):
+            res = client.get("/api/v1/history/system?ip=192.168.1.1&range=3m")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["cpu"] == []
+        assert data["memory"] == []
+        assert data["disk"] == []
+
+    def test_all_valid_ranges_accepted(self):
+        """所有合法 range 值均被接受"""
+        for r in ("6h", "1d", "1w", "1m", "3m"):
+            mock_result = self._mock_result(range=r)
+            with patch("backend.routers.history.get_system_history", return_value=mock_result):
+                res = client.get(f"/api/v1/history/system?ip=192.168.1.1&range={r}")
+            assert res.status_code == 200, f"range={r} should be accepted"

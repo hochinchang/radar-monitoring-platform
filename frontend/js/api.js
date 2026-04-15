@@ -74,3 +74,22 @@ async function fetchSystemStatus() {
 async function fetchDiskStatus() {
   return apiFetch('/disk/current');
 }
+
+/**
+ * 取得儀器 DiffTime 歷史記錄
+ * @param {string} fileType
+ * @param {string} ip
+ * @param {string} range  6h | 1d | 1w | 1m | 3m
+ */
+async function fetchInstrumentHistory(fileType, ip, range) {
+  return apiFetch(`/history/${encodeURIComponent(fileType)}?ip=${encodeURIComponent(ip)}&range=${encodeURIComponent(range)}`);
+}
+
+/**
+ * 取得同 IP 電腦的 CPU / 記憶體 / 磁碟歷史記錄
+ * @param {string} ip
+ * @param {string} range  6h | 1d | 1w | 1m | 3m
+ */
+async function fetchSystemHistory(ip, range) {
+  return apiFetch(`/history/system?ip=${encodeURIComponent(ip)}&range=${encodeURIComponent(range)}`);
+}

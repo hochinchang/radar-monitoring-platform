@@ -118,9 +118,26 @@
   - 前端靜態檔案正確提供
   - _需求：4.1_
 
----
+- [x] 16. 儀器歷史資料 API（history router）
+  - `backend/routers/history.py`：GET /api/v1/history/{file_type}（query: ip, range）
+  - `backend/services/history_service.py`：查詢 radarStatus/HFradarStatus/satelliteStatus/windprofilerStatus/DSStatus，依 range 參數過濾時間範圍（6h/1d/1w/1m/3m）
+  - GET /api/v1/history/system（query: ip, range）：查詢 SystemStatus.CheckList（CPU/記憶體）與 DiskStatus.CheckList（磁碟）
+  - 回傳含 threshold_yellow/orange/red 的 JSON，供前端畫閾值線
+  - _需求：7.1–7.9_
 
-## 未完成項目說明
+- [x] 17. 儀器歷史資料頁面（history.html + history.js）
+  - `frontend/history.html`：歷史資料頁面，從 URL query string 取得 file_type、ip、equipment_name
+  - `frontend/js/history.js`：使用 Chart.js 繪製 DiffTime 時序折線圖，Y 軸疊加三條閾值水平線（黃/橙/紅）
+  - 時間範圍選擇器：6h / 1d / 1w / 1m / 3m 按鈕，切換後重新打 API 更新圖表
+  - 同頁面另繪 CPU（Load_1）、記憶體（MemoryUSE）、磁碟（Used）三張時序圖，時間範圍與主圖同步
+  - 無資料時顯示「此時間範圍內無資料」提示
+  - `frontend/js/api.js`：新增 `fetchInstrumentHistory(fileType, ip, range)` 與 `fetchSystemHistory(ip, range)`
+  - _需求：7.1–7.9_
+
+- [x] 18. 儀器卡片點擊開啟歷史頁面（dashboard.js 更新）
+  - `_makeCard` 加上 `data-file-type`、`data-ip`、`data-equipment-name` 屬性
+  - 點擊卡片時以 `window.open('/history.html?file_type=...&ip=...&name=...', '_blank')` 開啟新分頁
+  - _需求：7.1_
 
 - **任務 11**：電腦頁面的警示門檻需依新的硬體警戒門檻更新（目前使用舊的固定值）
 - **任務 13**：確認 thresholds.yaml 預設 interval_minutes=7，fallback 邏輯正確

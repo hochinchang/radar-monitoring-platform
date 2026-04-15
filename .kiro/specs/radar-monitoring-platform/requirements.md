@@ -15,7 +15,7 @@
 - **刷新週期（Refresh_Interval）**：Dashboard 自動向後端重新取得最新資料的時間間隔，固定為 60 秒。
 - **本地時間（Local_Time）**：伺服器或瀏覽器所在時區的當前時間。
 - **UTC 時間（UTC_Time）**：協調世界時（Coordinated Universal Time）的當前時間。
-- **$T$**：資料週期結束時間，用於計算檔案到位時間差，通常指的是兩筆資料的時間間隔。異常判定標準與告警機制
+- **$T$**：資料週期結束時間，用於計算檔案到位時間差，通常指的是兩筆資料的時間間隔。
 
 ---
 
@@ -61,7 +61,7 @@
 5. WHEN 某 Instrument 的 DiffTime 超過 14400 分鐘或無資料，THE Dashboard SHALL 以灰色顯示「斷線」。
 6. THE Dashboard SHALL 為每個 Instrument 各自顯示獨立的狀態區塊，包含 IP、FileType、EquipmentName 與時間差數值。
 7. THE Platform SHALL 從各 FileCheck 資料表取得每個 Instrument 的最新一筆快照，以判斷即時狀態。
-8. THE Dashboard SHALL 依科別（Department）分組顯示儀器狀態，所有正常的就不單獨顯示出來，用一個綠色方框顯有總共有多少個機器（或資料），正常的有多少，滑鼠點一下才會展開來各別顯示。
+8. THE Dashboard SHALL 依科別（Department）分組顯示儀器狀態，所有正常的就不單獨顯示出來，用一個綠色方框顯示總共有多少個機器，正常的有多少，滑鼠點一下才會展開來各別顯示。
 9. THE Dashboard SHALL 在儀器狀態頁面頂部提供科別篩選列，包含「全部」及各科別按鈕（氣象雷達科、海象雷達科、衛星作業科、品管科、應用科），WHEN 操作人員點擊某科別按鈕，THE Dashboard SHALL 僅顯示該科別的儀器分組，其餘科別隱藏。
 10. WHEN 操作人員點擊「全部」按鈕，THE Dashboard SHALL 顯示所有科別的儀器分組。
 11. WHEN 資料自動刷新後，THE Dashboard SHALL 保持目前選取的科別篩選狀態不變。
@@ -143,3 +143,21 @@
 3. THE Dashboard SHALL 依硬體警戒門檻以黃/橙/紅三段燈號顯示各電腦的警示狀態。
 4. WHEN CPU 使用率超過 3 分鐘未更新，THE Dashboard SHALL 以黃燈顯示（表示電腦可能關機或網路不通）。
 5. WHEN CPU 使用率超過 30 分鐘未更新，THE Dashboard SHALL 以紅燈顯示。
+
+---
+
+### 需求 7：儀器歷史資料時序圖
+
+**使用者故事：** 身為操作人員，我希望點擊某個儀器卡片後，能在新分頁看到該儀器的資料時間差歷史趨勢圖，以及同一台電腦的 CPU、記憶體、磁碟使用率時序圖，以便判斷異常是偶發還是持續性問題。
+
+#### 驗收標準
+
+1. WHEN 操作人員點擊儀器狀態頁面上的某個儀器卡片，THE Platform SHALL 在新分頁開啟該儀器的歷史資料頁面。
+2. THE 歷史資料頁面 SHALL 顯示該儀器（FileType + IP）的資料時間差（DiffTime，單位：分鐘）時序折線圖。
+3. THE 歷史資料頁面 SHALL 提供時間範圍選擇器，選項為：過去 6 小時、1 天、1 週、1 個月、3 個月。
+4. WHEN 操作人員切換時間範圍，THE 歷史資料頁面 SHALL 重新向後端取得對應區間的資料並更新圖表。
+5. THE 時序圖 SHALL 在 Y 軸疊加顯示黃色、橙色、紅色三條閾值水平線，對應該儀器目前的 threshold_yellow、threshold_orange、threshold_red 設定值。
+6. THE 歷史資料頁面 SHALL 在同一頁面另外顯示與該儀器同一 IP 電腦的 CPU 負載（Load_1）、記憶體使用率（MemoryUSE）、磁碟使用率（Used）三張時序折線圖，時間範圍與儀器圖表同步。
+7. THE Platform SHALL 從 `radarStatus`、`HFradarStatus`、`satelliteStatus`、`windprofilerStatus`、`DSStatus` 等歷史資料表取得儀器 DiffTime 歷史記錄。
+8. THE Platform SHALL 從 `SystemStatus.CheckList` 取得 CPU 與記憶體歷史記錄，從 `DiskStatus.CheckList` 取得磁碟使用率歷史記錄。
+9. IF 指定時間範圍內無歷史資料，THE 歷史資料頁面 SHALL 顯示「此時間範圍內無資料」提示。
