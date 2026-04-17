@@ -54,3 +54,27 @@ class ThresholdUpdateResponse(BaseModel):
     threshold_orange: float
     threshold_red: float
     updated_at: datetime
+
+
+# --- computer-status-unified-card models ---
+
+class DiskEntry(BaseModel):
+    file_system: str
+    used_pct: Optional[float]
+
+
+class ComputerItem(BaseModel):
+    ip: str
+    equipment_name: Optional[str] = None
+    department: Optional[str] = None
+    load_1: Optional[float] = None
+    load_5: Optional[float] = None
+    load_15: Optional[float] = None
+    memory_use: Optional[float] = None
+    server_time: Optional[str] = None
+    disks: list[DiskEntry] = []
+
+
+class ComputerStatusResponse(BaseModel):
+    items: list[ComputerItem]
+    disk_error: bool

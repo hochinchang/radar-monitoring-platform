@@ -1,9 +1,9 @@
 /**
  * computers.js — 電腦即時狀況頁面控制器
- * 系統負載/記憶體與磁碟使用率均依 Department 分組顯示。
+ * 每台電腦以單一統一卡片呈現，同時顯示系統指標與磁碟資料，依科別分組。
  * 三段燈號門檻：
  *   記憶體：>60% 黃、>70% 橙、>80% 紅
- *   磁碟剩餘：<10% 黃、<5% 橙、<1% 紅（Used% 換算：>90% 黃、>95% 橙、>99% 紅）
+ *   磁碟剩餘：<10% 黃、<5% 橙、<1% 紅
  *   CPU 更新逾時：>3分鐘 黃、>10分鐘 橙、>30分鐘 紅
  */
 
@@ -20,19 +20,17 @@ const DEPT_LABELS = {
 const DEPT_ORDER = ['wrs', 'mrs', 'sos', 'dqcs', 'rsa'];
 
 // ── 門檻常數 ──────────────────────────────────────────────
-const MEM_YELLOW = 60;   // 記憶體 >60% → 黃
-const MEM_ORANGE = 70;   // 記憶體 >70% → 橙
-const MEM_RED    = 80;   // 記憶體 >80% → 紅
+const MEM_YELLOW = 60;
+const MEM_ORANGE = 70;
+const MEM_RED    = 80;
 
-// 磁碟「剩餘空間」門檻（API 回傳 used_pct，剩餘 = 100 - used_pct）
-const DISK_FREE_YELLOW = 10;  // 剩餘 <10% → 黃
-const DISK_FREE_ORANGE = 5;   // 剩餘 <5%  → 橙
-const DISK_FREE_RED    = 1;   // 剩餘 <1%  → 紅
+const DISK_FREE_YELLOW = 10;
+const DISK_FREE_ORANGE = 5;
+const DISK_FREE_RED    = 1;
 
-// CPU 更新逾時（分鐘）
-const CPU_TIMEOUT_YELLOW = 3;   // >3 分鐘未更新 → 黃
-const CPU_TIMEOUT_ORANGE = 10;  // >10 分鐘未更新 → 橙
-const CPU_TIMEOUT_RED    = 30;  // >30 分鐘未更新 → 紅
+const CPU_TIMEOUT_YELLOW = 3;
+const CPU_TIMEOUT_ORANGE = 10;
+const CPU_TIMEOUT_RED    = 30;
 
 // ── 工具函式 ──────────────────────────────────────────────
 function _pad(n) { return String(n).padStart(2, '0'); }
@@ -103,11 +101,11 @@ function _diskLevel(usedPct) {
 
 /**
  * CPU 更新逾時燈號
- * @param {string|null} serverTimeStr  ISO 8601 字串（後端 ServerTime）
+ * @param {string|null} serverTimeStr  ISO 8601 字串（後端 server_time 欄位）
  * @returns {'ok'|'yellow'|'orange'|'red'}
  */
 function _cpuTimeoutLevel(serverTimeStr) {
-  if (!serverTimeStr) return 'red'; // 無資料視為最嚴重
+  if (!serverTimeStr) return 'red';
   const lastUpdate = new Date(serverTimeStr);
   if (isNaN(lastUpdate.getTime())) return 'red';
   const diffMin = (Date.now() - lastUpdate.getTime()) / 60000;
@@ -125,120 +123,103 @@ function _worstLevel(...levels) {
   return levels.reduce((a, b) => LEVEL_RANK[a] >= LEVEL_RANK[b] ? a : b, 'ok');
 }
 
-// ── 燈號 badge HTML ───────────────────────────────────────
-function _levelBadge(level, label) {
-  if (level === 'ok') return `<span class="badge-ok">✓ 正常</span>`;
-  return `<span class="badge-alert-${level}">⚠ ${label}</span>`;
+// ── 統一卡片渲染 ──────────────────────────────────────────
+
+/**
+ * 渲染單台電腦的統一卡片 HTML
+ * @param {Object} item  ComputerItem 資料
+ * @returns {string}  卡片 HTML 字串
+ */
+function _renderUnifiedCard(item) {
+  const mem    = item.memory_use != null ? item.memory_use.toFixed(1) + '%' : 'N/A';
+  const load1  = item.load_1  != null ? item.load_1.toFixed(2)  : 'N/A';
+  const load5  = item.load_5  != null ? item.load_5.toFixed(2)  : 'N/A';
+  const load15 = item.load_15 != null ? item.load_15.toFixed(2) : 'N/A';
+
+  const memLvl  = _memLevel(item.memory_use);
+  const cpuLvl  = _cpuTimeoutLevel(item.server_time);
+  const diskLevels = (item.disks || []).map(d => _diskLevel(d.used_pct));
+  const worst   = _worstLevel(memLvl, ...diskLevels, cpuLvl);
+
+  const diskRows = (item.disks || []).map(d => {
+    const usedDisp = d.used_pct != null ? d.used_pct.toFixed(1) + '%' : 'N/A';
+    const lvl = _diskLevel(d.used_pct);
+    return `
+          <div class="metric-row diff-alert-${lvl}">
+            <span class="metric-label">${d.file_system}</span>
+            <span class="metric-value">${usedDisp}</span>
+          </div>`;
+  }).join('');
+
+  const cardClass = worst !== 'ok' ? `instrument-card level-alert-${worst}` : 'instrument-card level-ok';
+
+  return `
+      <div class="${cardClass}">
+        <div class="card-title">${item.ip}</div>
+        <div class="card-name">${item.equipment_name || '--'}</div>
+        <div class="metric-row">
+          <span class="metric-label">記憶體</span>
+          <span class="metric-value diff-alert-${memLvl}">${mem}</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">負載 1m</span>
+          <span class="metric-value">${load1}</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">負載 5m</span>
+          <span class="metric-value">${load5}</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">負載 15m</span>
+          <span class="metric-value">${load15}</span>
+        </div>
+        ${diskRows}
+      </div>`;
 }
 
-// ── 系統負載/記憶體卡片 ───────────────────────────────────
-function _renderSystemGrid(items) {
-  const container = document.getElementById('system-container');
+/**
+ * 依科別分組渲染所有統一卡片，寫入 #computers-container
+ * @param {Array}   items      ComputerItem 陣列
+ * @param {boolean} diskError  DiskStatus 資料庫是否無法連線
+ */
+function _renderUnifiedGrid(items, diskError) {
+  const container = document.getElementById('computers-container');
+
   if (!items || items.length === 0) {
-    container.innerHTML = '<p class="loading">目前無系統資料</p>';
+    container.innerHTML = '<p class="loading">目前無電腦資料</p>';
     return;
   }
+
+  const diskBanner = diskError
+    ? '<div class="disk-error-banner">⚠ 磁碟資料庫無法連線，磁碟資訊暫時不可用</div>'
+    : '';
+
   const groups = _groupByDept(items);
-  container.innerHTML = _orderedKeys(groups).map(key => {
+  const groupsHtml = _orderedKeys(groups).map(key => {
     const label = DEPT_LABELS[key] || key;
-    const cards = groups[key].map(item => {
-      const mem     = item.memory_use != null ? item.memory_use.toFixed(1) + '%' : 'N/A';
-      const load    = item.load_1     != null ? item.load_1.toFixed(2)           : 'N/A';
-      const memLvl  = _memLevel(item.memory_use);
-      const cpuLvl  = _cpuTimeoutLevel(item.server_time);
-      const worst   = _worstLevel(memLvl, cpuLvl);
-
-      const memBadge = memLvl !== 'ok'
-        ? `<div>${_levelBadge(memLvl, `記憶體 ${mem}`)}</div>`
-        : '';
-      const cpuBadge = cpuLvl !== 'ok'
-        ? `<div>${_levelBadge(cpuLvl, 'CPU 逾時')}</div>`
-        : '';
-      const okBadge  = worst === 'ok'
-        ? `<span class="badge-ok">✓ 正常</span>`
-        : '';
-
-      return `
-        <div class="instrument-card${worst !== 'ok' ? ' level-alert-' + worst : ' level-ok'}">
-          <div class="card-title">${item.ip}</div>
-          <div class="card-name">${item.equipment_name || '--'}</div>
-          <div class="metric-row">
-            <span class="metric-label">記憶體</span>
-            <span class="metric-value diff-alert-${memLvl === 'ok' ? 'ok' : memLvl}">${mem}</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">負載(1m)</span>
-            <span class="metric-value">${load}</span>
-          </div>
-          <div class="badge-row">
-            ${memBadge}${cpuBadge}${okBadge}
-          </div>
-        </div>`;
-    }).join('');
+    const cards = groups[key].map(item => _renderUnifiedCard(item)).join('');
     return `<div class="instrument-group">
       <div class="group-header">${label}</div>
       <div class="group-cards">${cards}</div>
     </div>`;
   }).join('');
-}
 
-// ── 磁碟使用率卡片 ────────────────────────────────────────
-function _renderDiskGrid(items) {
-  const container = document.getElementById('disk-container');
-  if (!items || items.length === 0) {
-    container.innerHTML = '<p class="loading">目前無磁碟資料</p>';
-    return;
-  }
-  const groups = _groupByDept(items);
-  container.innerHTML = _orderedKeys(groups).map(key => {
-    const label = DEPT_LABELS[key] || key;
-    const cards = groups[key].map(item => {
-      const usedPct  = item.used_pct;
-      const freePct  = usedPct != null ? (100 - usedPct).toFixed(1) + '%' : 'N/A';
-      const usedDisp = usedPct != null ? usedPct.toFixed(1) + '%' : 'N/A';
-      const lvl      = _diskLevel(usedPct);
-
-      return `
-        <div class="instrument-card${lvl !== 'ok' ? ' level-alert-' + lvl : ' level-ok'}">
-          <div class="card-title">${item.ip}</div>
-          <div class="card-name">${item.file_system || '--'}</div>
-          <div class="metric-row">
-            <span class="metric-label">已用</span>
-            <span class="metric-value diff-alert-${lvl === 'ok' ? 'ok' : lvl}">${usedDisp}</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">剩餘</span>
-            <span class="metric-value">${freePct}</span>
-          </div>
-          <div class="badge-row">
-            ${_levelBadge(lvl, `磁碟剩餘 ${freePct}`)}
-          </div>
-        </div>`;
-    }).join('');
-    return `<div class="instrument-group">
-      <div class="group-header">${label}</div>
-      <div class="group-cards">${cards}</div>
-    </div>`;
-  }).join('');
+  container.innerHTML = diskBanner + groupsHtml;
 }
 
 // ── 資料刷新 ──────────────────────────────────────────────
 async function _refreshData() {
   try {
-    const [sysData, diskData] = await Promise.all([
-      fetchSystemStatus(),
-      fetchDiskStatus(),
-    ]);
-    _renderSystemGrid(sysData.items);
-    _renderDiskGrid(diskData.items);
+    const data = await fetchComputerStatus();
+    _renderUnifiedGrid(data.items, data.disk_error);
     _clearStatus();
+    document.getElementById('last-refreshed').textContent = _formatDatetime(new Date());
   } catch (e) {
     _showStatus(
       e.type === 'db_error' ? '資料庫連線失敗，顯示上次資料' : '資料更新失敗，正在重試…',
       e.type === 'db_error' ? 'error' : 'warning'
     );
   }
-  document.getElementById('last-refreshed').textContent = _formatDatetime(new Date());
 }
 
 function _resetRefreshTimer() {

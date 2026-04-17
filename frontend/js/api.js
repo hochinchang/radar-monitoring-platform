@@ -75,6 +75,11 @@ async function fetchDiskStatus() {
   return apiFetch('/disk/current');
 }
 
+/** 取得電腦統一狀態（系統 + 磁碟合併） */
+async function fetchComputerStatus() {
+  return apiFetch('/computers/current');
+}
+
 /**
  * 取得儀器 DiffTime 歷史記錄
  * @param {string} fileType
